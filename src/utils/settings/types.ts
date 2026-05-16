@@ -1,4 +1,3 @@
-import { feature } from 'bun:bundle'
 import { z } from 'zod/v4'
 import { SandboxSettingsSchema } from '../../entrypoints/sandboxTypes.js'
 import { isEnvTruthy } from '../envUtils.js'
@@ -59,7 +58,7 @@ export const PermissionsSchema = lazySchema(() =>
         ),
       defaultMode: z
         .enum(
-          feature('TRANSCRIPT_CLASSIFIER')
+          true
             ? PERMISSION_MODES
             : EXTERNAL_PERMISSION_MODES,
         )
@@ -75,7 +74,7 @@ export const PermissionsSchema = lazySchema(() =>
         .describe(
           'Allow bypass permissions mode to appear in the mode list without requiring the CLI flag',
         ),
-      ...(feature('TRANSCRIPT_CLASSIFIER')
+      ...(true
         ? {
             disableAutoMode: z
               .enum(['disable'])
@@ -741,13 +740,44 @@ export const SettingsSchema = lazySchema(() =>
           z.string(),
           z.object({
             base_url: z.string().url().describe('OpenAI-compatible API endpoint (must be https:// or http://)'),
-            api_key: z.string().describe('API key for this provider'),
+            // Three ways to provide credentials (any one):
+            //   1. api_key: single key (back-compat)
+            //   2. api_keys: explicit pool [string, string, ...]
+            //   3. api_keys_env: glob pattern over env vars, e.g. "ZEN_API_KEY_*"
+            // If multiple are set, precedence is api_keys > api_keys_env > api_key.
+            api_key: z.string().optional().describe('Single API key for this provider.'),
+            api_keys: z.array(z.string()).optional().describe(
+              'Explicit pool of API keys. Used with rotation strategy.',
+            ),
+            api_keys_env: z.string().optional().describe(
+              'Glob pattern matching env var names whose values are added to the pool. ' +
+                'Example: "ZEN_API_KEY_*" picks up ZEN_API_KEY_1, ZEN_API_KEY_2, ... ' +
+                'Useful for free-tier accounts with multiple keys.',
+            ),
+            rotation: z
+              .enum(['round-robin', 'least-recent'])
+              .optional()
+              .describe('Rotation strategy when pool has 2+ keys. Default: round-robin.'),
+            cooldown_ms: z
+              .number()
+              .int()
+              .nonnegative()
+              .optional()
+              .describe('Milliseconds a key stays out of rotation after a 429. Default: 60000.'),
+            model: z
+              .string()
+              .optional()
+              .describe(
+                'Default model identifier for this provider, used when only the alias is referenced. ' +
+                  'Example agentModels entry "zen-pool" with model "claude-sonnet-4" lets routing target "zen-pool" without specifying the model.',
+              ),
           }),
         )
         .optional()
         .describe(
-          'Map of model name to provider connection info. ' +
-            'Example: { "deepseek-chat": { "base_url": "https://api.deepseek.com/v1", "api_key": "sk-xxx" } }',
+          'Map of provider alias to connection info. ' +
+            'Example: { "deepseek": { "base_url": "https://api.deepseek.com/v1", "api_key": "sk-xxx" }, ' +
+            '"zen-pool": { "base_url": "https://opencode.ai/zen/v1", "api_keys_env": "ZEN_API_KEY_*", "rotation": "round-robin" } }',
         ),
       agentRouting: z
         .record(z.string(), z.string())
@@ -756,6 +786,41 @@ export const SettingsSchema = lazySchema(() =>
           'Map of agent identifier (subagent_type or team member name) to model name. ' +
             'Use "default" key as fallback. Model name must exist in agentModels. ' +
             'Example: { "Explore": "deepseek-chat", "general-purpose": "gpt-4o", "default": "gpt-4o" }',
+        ),
+      smartRouting: z
+        .object({
+          enabled: z.boolean().describe('Master switch for provider-aware smart routing.'),
+          targets: z
+            .object({
+              simple: z.string().optional().describe(
+                'Target for trivial chatter ("ok", short follow-ups). Format: "provider:model" or just "provider" if model is set in agentModels.',
+              ),
+              strong: z.string().optional().describe(
+                'Target for generic non-trivial work. This is the safe default for any unclassified turn.',
+              ),
+              code: z.string().optional().describe(
+                'Target for turns containing code fences or implementation requests.',
+              ),
+              reasoning: z.string().optional().describe(
+                'Target for analytical turns (debug, why X, root cause, plan, design).',
+              ),
+              vision: z.string().optional().describe(
+                'Target for turns with image attachments.',
+              ),
+            })
+            .describe(
+              'Map of category to "provider:model" target. ' +
+                '"strong" is required when enabled; others fall back to "strong" if absent. ' +
+                'Example: { "simple": "ollama-local:qwen2.5:7b", "strong": "zen-pool:claude-sonnet-4", "code": "nvidia-nim:deepseek-coder-v2" }',
+            ),
+          simpleMaxChars: z.number().int().positive().optional().describe('Override for routeModel simpleMaxChars (default 160).'),
+          simpleMaxWords: z.number().int().positive().optional().describe('Override for routeModel simpleMaxWords (default 28).'),
+        })
+        .optional()
+        .describe(
+          'Provider-aware smart routing — classifies each turn into 5 categories ' +
+            '(simple/strong/code/reasoning/vision) and selects provider + model + rotated API key. ' +
+            'Requires agentModels entries for each unique provider referenced in targets.',
         ),
       fastMode: z
         .boolean()
@@ -849,7 +914,7 @@ export const SettingsSchema = lazySchema(() =>
         .enum(['latest', 'stable'])
         .optional()
         .describe('Release channel for auto-updates (latest or stable)'),
-      ...(feature('LODESTONE')
+      ...(false
         ? {
             disableDeepLinkRegistration: z
               .enum(['disable'])
@@ -882,7 +947,7 @@ export const SettingsSchema = lazySchema(() =>
               ),
           }
         : {}),
-      ...(feature('PROACTIVE') || feature('KAIROS')
+      ...(false || false
         ? {
             minSleepDurationMs: z
               .number()
@@ -905,7 +970,7 @@ export const SettingsSchema = lazySchema(() =>
               ),
           }
         : {}),
-      ...(feature('VOICE_MODE')
+      ...(false
         ? {
             voiceEnabled: z
               .boolean()
@@ -913,7 +978,7 @@ export const SettingsSchema = lazySchema(() =>
               .describe('Enable voice mode (hold-to-talk dictation)'),
           }
         : {}),
-      ...(feature('KAIROS')
+      ...(false
         ? {
             assistant: z
               .boolean()
@@ -963,7 +1028,7 @@ export const SettingsSchema = lazySchema(() =>
             'plugins may push inbound messages. Undefined falls back to the default. ' +
             'Requires channelsEnabled: true.',
         ),
-      ...(feature('KAIROS') || feature('KAIROS_BRIEF')
+      ...(false || false
         ? {
             defaultView: z
               .enum(['chat', 'transcript'])
@@ -1009,7 +1074,7 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'Whether the user has accepted the bypass permissions mode dialog',
         ),
-      ...(feature('TRANSCRIPT_CLASSIFIER')
+      ...(true
         ? {
             skipAutoPermissionPrompt: z
               .boolean()
