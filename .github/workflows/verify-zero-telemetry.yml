@@ -1,0 +1,52 @@
+name: Verify Zero Telemetry
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  no-telemetry-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block telemetry npm packages
+        run: |
+          set -e
+          if grep -E '"@opentelemetry|"@growthbook|"@datadog|"@statsig|"datadog-' package.json; then
+            echo "::error::Telemetry dependency detected in package.json"
+            exit 1
+          fi
+          echo "OK: no telemetry deps"
+
+  no-telemetry-endpoints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block telemetry network endpoints
+        run: |
+          set -e
+          # Exclude the MCP registry comments (mcp.datadoghq.com is a user-facing MCP server identifier, not telemetry)
+          hits=$(grep -rE 'http-intake\.logs|otlp-http|cdn\.growthbook|growthbook-api|api\.amplitude|api\.segment|api\.mixpanel' src/ --include="*.ts" --include="*.js" 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Telemetry endpoint detected:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK: no telemetry endpoints"
+
+  no-active-telemetry-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block reintroduction of active telemetry
+        run: |
+          set -e
+          # Look for actual network calls inside analytics/ (axios/fetch/got/undici on telemetry endpoints)
+          hits=$(grep -rE "axios\.(post|put|get).*(datadog|growthbook|opentelemetry)|fetch\(.+(datadog|growthbook|opentelemetry)" src/services/analytics/ --include="*.ts" 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Active telemetry HTTP call detected:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK: analytics/ has no active HTTP calls"
