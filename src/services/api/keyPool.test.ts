@@ -104,7 +104,15 @@ describe('KeyPool — markSuccess + getStats', () => {
 describe('expandKeysFromEnv', () => {
   const originalEnv = process.env
   beforeEach(() => {
-    process.env = { ...originalEnv }
+    // Clone env and scrub any pre-existing keys that match test patterns,
+    // so real user env vars (e.g. ZEN_API_KEY_*) don't leak into assertions.
+    const clean = { ...originalEnv }
+    for (const k of Object.keys(clean)) {
+      if (/^ZEN_API_KEY_|^NOTHING_MATCHES_|^POOL_X_|^KEY_[A-Z]_/.test(k)) {
+        delete clean[k]
+      }
+    }
+    process.env = clean
   })
   afterEach(() => {
     process.env = originalEnv
