@@ -16,12 +16,35 @@
  * so the tradeoff is visible and the user controls it.
  */
 
+/**
+ * Routing categories (5).
+ * Order matters for classification — first match wins:
+ *   1. vision   — input has an image attachment
+ *   2. code     — input contains ``` fence or ` inline code
+ *   3. reasoning — input has analytical keywords (debug, why, root cause, plan)
+ *   4. strong   — anything not classifiable as simple
+ *   5. simple   — short trivial chatter under char/word cutoffs
+ */
+export type RoutingCategory = 'simple' | 'strong' | 'code' | 'reasoning' | 'vision'
+
+/**
+ * Legacy alias kept for the 0.11 baseline tests (simple|strong only).
+ * Prefer RoutingCategory in new code.
+ */
+export type Complexity = 'simple' | 'strong'
+
 export type SmartRoutingConfig = {
   enabled: boolean
-  /** Model to use for turns classified as "simple". */
-  simpleModel: string
-  /** Model to use for turns classified as "strong" (or when unsure). */
-  strongModel: string
+  /**
+   * NEW: target map by category. When provided, takes precedence over
+   * simpleModel/strongModel. Values are model identifiers (the resolver
+   * upstream is responsible for translating to provider+key).
+   */
+  targets?: Partial<Record<RoutingCategory, string>>
+  /** Legacy: model to use for turns classified as "simple". */
+  simpleModel?: string
+  /** Legacy: model to use for turns classified as "strong" (or when unsure). */
+  strongModel?: string
   /** Max characters in user input to qualify as "simple". Default 160. */
   simpleMaxChars?: number
   /** Max whitespace-separated words to qualify as "simple". Default 28. */
@@ -30,7 +53,10 @@ export type SmartRoutingConfig = {
 
 export type RoutingDecision = {
   model: string
-  complexity: 'simple' | 'strong'
+  /** 5-category classification — preferred. */
+  category: RoutingCategory
+  /** Legacy 2-category view, derived from category. */
+  complexity: Complexity
   /** Human-readable reason — useful for the UI indicator and debug logs. */
   reason: string
 }
@@ -51,6 +77,11 @@ export type RoutingInput = {
    * short — a bare "build X" opens the whole task.
    */
   turnNumber?: number
+  /**
+   * Optional: true when the user attached one or more images to this turn.
+   * Routes to the "vision" category regardless of other heuristics.
+   */
+  hasImages?: boolean
 }
 
 const DEFAULT_SIMPLE_MAX_CHARS = 160
@@ -113,103 +144,143 @@ function hasStrongKeyword(text: string): boolean {
 }
 
 /**
- * Decide whether to route to the simple or strong model based on heuristics.
- * Returns the chosen model + a reason. When routing is disabled or both
- * models match, the strong model is used (safe default).
+ * Resolve the effective model identifier for a given category, with sensible
+ * fallbacks across the new `targets` map and the legacy simple/strong fields.
+ *
+ * Resolution order:
+ *   1. config.targets[category]                       — explicit per-category target
+ *   2. config.targets.strong                          — generic fallback
+ *   3. config.strongModel (legacy)                    — back-compat
+ *   4. config.simpleModel (legacy) when category=simple
+ *   5. null (caller must handle — typically use the global default model)
+ */
+function resolveCategoryTarget(
+  category: RoutingCategory,
+  config: SmartRoutingConfig,
+): string | null {
+  // 1. explicit per-category target wins
+  const explicit = config.targets?.[category]
+  if (explicit) return explicit
+
+  // 2. legacy back-compat: simple category → simpleModel BEFORE generic fallback
+  if (category === 'simple' && config.simpleModel) return config.simpleModel
+
+  // 3. generic fallback inside the targets map
+  const fallback = config.targets?.strong
+  if (fallback) return fallback
+
+  // 4. legacy strongModel as last-resort
+  if (config.strongModel) return config.strongModel
+
+  return null
+}
+
+/** Map 5-category to legacy 2-category. */
+function toComplexity(category: RoutingCategory): Complexity {
+  return category === 'simple' ? 'simple' : 'strong'
+}
+
+function decide(
+  category: RoutingCategory,
+  config: SmartRoutingConfig,
+  reason: string,
+): RoutingDecision {
+  const model = resolveCategoryTarget(category, config)
+  return {
+    model: model ?? '', // empty string signals "use global default"
+    category,
+    complexity: toComplexity(category),
+    reason,
+  }
+}
+
+/**
+ * Classify a turn into one of 5 categories and pick the appropriate model.
+ *
+ * When `targets` is provided, each category resolves to its own model.
+ * When only legacy `simpleModel`/`strongModel` are set, behavior collapses
+ * back to the 0.11 two-category routing (back-compat for existing users).
  */
 export function routeModel(
   input: RoutingInput,
   config: SmartRoutingConfig,
 ): RoutingDecision {
   if (!config.enabled) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'smart-routing disabled',
-    }
+    return decide('strong', config, 'smart-routing disabled')
   }
-  if (!config.simpleModel || !config.strongModel) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'simpleModel or strongModel missing from config',
-    }
+
+  // Sanity: need at least one target (new or legacy) to do anything useful.
+  const hasAnyTarget =
+    !!config.targets?.strong ||
+    !!config.targets?.simple ||
+    !!config.targets?.code ||
+    !!config.targets?.reasoning ||
+    !!config.targets?.vision ||
+    !!config.strongModel ||
+    !!config.simpleModel
+  if (!hasAnyTarget) {
+    return decide('strong', config, 'no targets configured')
   }
-  if (config.simpleModel === config.strongModel) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'simpleModel equals strongModel',
+
+  // Legacy back-compat block (no `targets` map — caller is using simpleModel/strongModel only):
+  //   - missing simpleModel ⇒ everything routes to strong (matches 0.11 behavior)
+  //   - simpleModel === strongModel ⇒ collapse to strong (no-op routing)
+  // Categories simple/code/reasoning/vision require an explicit targets map to differentiate.
+  if (!config.targets) {
+    if (!config.simpleModel) {
+      return decide('strong', config, 'simpleModel or strongModel missing from config')
+    }
+    if (config.simpleModel === config.strongModel) {
+      return decide('strong', config, 'simpleModel equals strongModel')
     }
   }
 
   const text = input.userText ?? ''
   const trimmed = text.trim()
 
-  if (!trimmed) {
-    // Empty input (e.g. resuming a tool-use chain) — cheap by default.
-    return {
-      model: config.simpleModel,
-      complexity: 'simple',
-      reason: 'empty user text',
-    }
+  // 1. Vision — image attachment always wins.
+  if (input.hasImages) {
+    return decide('vision', config, 'input contains image(s)')
   }
 
-  // First turn of a session is task-setup — always use strong.
+  // Empty input (resumed tool-use chain) → cheap by default.
+  if (!trimmed) {
+    return decide('simple', config, 'empty user text')
+  }
+
+  // First turn of a session is task-setup — always strong.
   if (input.turnNumber === 1) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'first turn of session',
-    }
+    return decide('strong', config, 'first turn of session')
   }
 
   const maxChars = config.simpleMaxChars ?? DEFAULT_SIMPLE_MAX_CHARS
   const maxWords = config.simpleMaxWords ?? DEFAULT_SIMPLE_MAX_WORDS
 
+  // 2. Code — fences or inline code.
   if (hasCode(trimmed)) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'contains code block or inline code',
-    }
+    return decide('code', config, 'contains code block or inline code')
   }
 
+  // 3. Reasoning — analytical/planning keywords.
   if (hasStrongKeyword(trimmed)) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'contains reasoning/planning keyword',
-    }
+    return decide('reasoning', config, 'contains reasoning/planning keyword')
   }
 
+  // 4. Strong — multi-paragraph or above size cutoffs.
   if (hasMultiParagraph(trimmed)) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: 'multi-paragraph input',
-    }
+    return decide('strong', config, 'multi-paragraph input')
   }
-
   if (trimmed.length > maxChars) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: `input > ${maxChars} chars`,
-    }
+    return decide('strong', config, `input > ${maxChars} chars`)
   }
-
   if (countWords(trimmed) > maxWords) {
-    return {
-      model: config.strongModel,
-      complexity: 'strong',
-      reason: `input > ${maxWords} words`,
-    }
+    return decide('strong', config, `input > ${maxWords} words`)
   }
 
-  return {
-    model: config.simpleModel,
-    complexity: 'simple',
-    reason: `short (${trimmed.length} chars, ${countWords(trimmed)} words)`,
-  }
+  // 5. Simple — short trivial chatter.
+  return decide(
+    'simple',
+    config,
+    `short (${trimmed.length} chars, ${countWords(trimmed)} words)`,
+  )
 }
