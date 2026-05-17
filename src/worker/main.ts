@@ -49,14 +49,47 @@ async function main() {
     await dispatcher.initialize()
     console.log('[startup] ✓ Message Dispatcher pronto')
 
+    // Load Fase 7 skills
+    console.log('[startup] Carregando Skill Registry (Fase 7)...')
+    await dispatcher.skillRegistry.loadSkills('src/worker/skills')
+    const loadedSkills = dispatcher.skillRegistry.list()
+    console.log(`[startup] ✓ ${loadedSkills.length} skills carregadas`)
+
+    // Execute skill onStartup hooks
+    for (const skill of loadedSkills) {
+      if (skill.onStartup) {
+        try {
+          await skill.onStartup()
+        } catch (err) {
+          console.error(`[startup] Erro ao inicializar skill ${skill.name}:`, err)
+        }
+      }
+    }
+
     // Setup dispatcher listeners para logs
     dispatcher.on('session_created', (data) => {
       console.log(`[whatsapp] Nova sessão: ${data.userName} (${data.userId})`)
     })
-    dispatcher.on('dispatch_complete', (event) => {
+    dispatcher.on('dispatch_complete', async (event) => {
       console.log(
         `[whatsapp] ${event.userId}: intent=${event.intent}, tokens=${event.tokens}, cost=$${event.cost.toFixed(4)}, latency=${event.duration}ms`
       )
+
+      // Execute skill onMessage hooks (Fase 7)
+      for (const skill of dispatcher.skillRegistry.list()) {
+        if (skill.onMessage) {
+          try {
+            await skill.onMessage({
+              userId: event.userId,
+              text: event.originalText,
+              intent: event.intent,
+              sessionId: event.messageId,
+            })
+          } catch (err) {
+            console.error(`[skill] Erro em onMessage para ${skill.name}:`, err)
+          }
+        }
+      }
     })
     dispatcher.on('dispatch_error', (error) => {
       console.error(`[whatsapp] Erro ao processar ${error.userId}: ${error.error}`)
@@ -108,6 +141,22 @@ async function main() {
     // Graceful shutdown
     const shutdown = async (signal: string) => {
       console.log(`\n[shutdown] Recebido ${signal}. Encerrando gracefully...`)
+
+      try {
+        console.log('[shutdown] Encerrando skills (Fase 7)...')
+        for (const skill of dispatcher.skillRegistry.list()) {
+          if (skill.onShutdown) {
+            try {
+              await skill.onShutdown()
+            } catch (err) {
+              console.error(`[shutdown] Erro ao desligar skill ${skill.name}:`, err)
+            }
+          }
+        }
+        console.log('[shutdown] ✓ Skills desligadas')
+      } catch (err) {
+        console.error('[shutdown] Erro ao encerrar skills:', err)
+      }
 
       try {
         console.log('[shutdown] Encerrando Message Dispatcher...')

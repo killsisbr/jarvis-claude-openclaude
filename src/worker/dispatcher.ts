@@ -14,6 +14,8 @@ import { CronScheduler } from "./cron-scheduler";
 import { Sentinels } from "./sentinels";
 import { EventBus } from "./event-bus";
 import { getDatabase } from "./db/schema";
+import { SandboxManager } from "./sandbox";
+import { SkillRegistry } from "./skills/registry";
 
 export interface DispatchEvent {
   messageId: string;
@@ -46,6 +48,10 @@ export class MessageDispatcher extends EventEmitter {
   sentinels: Sentinels;
   eventBus: EventBus;
 
+  // Fase 7 systems
+  sandboxManager: SandboxManager;
+  skillRegistry: SkillRegistry;
+
   constructor(worker: JarvisWorker) {
     super();
     this.worker = worker;
@@ -70,6 +76,10 @@ export class MessageDispatcher extends EventEmitter {
     this.eventBus = new EventBus();
     this.cronScheduler = new CronScheduler(this.eventBus);
     this.sentinels = new Sentinels(this.cronScheduler, this.eventBus);
+
+    // Initialize Fase 7 systems
+    this.sandboxManager = new SandboxManager();
+    this.skillRegistry = new SkillRegistry();
 
     this.setupGatewayListeners();
   }

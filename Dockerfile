@@ -1,46 +1,33 @@
-# ---- build stage ----
-FROM node:22-slim AS build
-
-# Install Bun
-RUN npm install -g bun@1.3.11
-
+# JARVIS Worker — Multi-stage Docker build
+# Stage 1: Builder (compile dependencies)
+FROM oven/bun:latest AS builder
 WORKDIR /app
 
-# Copy dependency manifests first for better layer caching
-COPY package.json bun.lock ./
-
-# Install all dependencies (including devDependencies for build)
+# Copy manifest and install frozen dependencies
+COPY package.json bun.lockb* ./
 RUN bun install --frozen-lockfile
 
-# Copy source code
-COPY src/ src/
-COPY scripts/ scripts/
-COPY bin/ bin/
-COPY tsconfig.json ./
-
-# Build the CLI bundle
-RUN bun run build
-
-# Prune devDependencies
-RUN rm -rf node_modules && bun install --frozen-lockfile --production
-
-# ---- runtime stage ----
-FROM node:22-slim
-
+# Stage 2: Runtime (minimal image)
+FROM oven/bun:latest
 WORKDIR /app
 
-# Copy only what's needed to run
-COPY --from=build /app/dist/cli.mjs dist/cli.mjs
-COPY --from=build /app/bin/ bin/
-COPY --from=build /app/node_modules/ node_modules/
-COPY --from=build /app/package.json package.json
-COPY README.md ./
+# Copy dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
 
-# Install git and ripgrep — many CLI tool operations depend on them
-RUN apt-get update && apt-get install -y --no-install-recommends git ripgrep \
-    && rm -rf /var/lib/apt/lists/*
+# Copy source code
+COPY src ./src
+COPY package.json ./
 
-# Run as non-root user
-USER node
+# Runtime configuration
+ENV NODE_ENV=production \
+    WORKER_PORT=6666
 
-ENTRYPOINT ["node", "/app/dist/cli.mjs"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost:6666/health || exit 1
+
+# Expose port
+EXPOSE 6666
+
+# Entrypoint
+CMD ["bun", "run", "src/worker/main.ts"]

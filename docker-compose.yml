@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  jarvis-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis-worker
+    ports:
+      - "6666:6666"
+    volumes:
+      # Persist SQLite database + Baileys WhatsApp session
+      - ~/.jarvis:/root/.jarvis
+      # Dev mode: auto-reload source code
+      - ./src:/app/src:cached
+    environment:
+      - WORKER_PORT=6666
+      - NODE_ENV=production
+      # API Keys (load from .env or set here)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_MODEL=${OPENAI_MODEL:-claude-3-5-sonnet-20241022}
+      # Provider rotation chain
+      - ROTATE_CHAIN=${ROTATE_CHAIN:-zen}
+      - ROTATE_MODE=${ROTATE_MODE:-0}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6666/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+# Network for inter-service communication
+networks:
+  default:
+    name: jarvis-network
+    driver: bridge

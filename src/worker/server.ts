@@ -11,6 +11,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express'
 import type { JarvisWorker } from './worker-core.ts'
 import type { MessageDispatcher } from './dispatcher.ts'
+import type { SandboxManager } from './sandbox.ts'
 
 export function createServer(
   worker: JarvisWorker,
@@ -279,6 +280,78 @@ export function createServer(
       },
       timestamp: new Date().toISOString(),
     })
+  })
+
+  // ── Sandbox Exec (Fase 7) ───────────────────────────────────────────────────────
+
+  app.post('/api/exec', async (req: Request, res: Response) => {
+    const { cmd, cwd, timeout, userId } = req.body as {
+      cmd?: string
+      cwd?: string
+      timeout?: number
+      userId?: string
+    }
+
+    if (!cmd || typeof cmd !== 'string') {
+      res.status(400).json({ error: 'Field "cmd" required (string)' })
+      return
+    }
+
+    if (!dispatcher?.sandboxManager) {
+      res.status(503).json({ error: 'Sandbox not initialized' })
+      return
+    }
+
+    const user = userId || 'unknown'
+
+    try {
+      // Check PlanMode (Fase 5)
+      const planCheck = dispatcher.planModeManager.checkPermission('bash')
+      if (!planCheck.allowed) {
+        res.status(403).json({
+          error: `Mode ${dispatcher.planModeManager.getCurrent()} does not allow execution`,
+        })
+        return
+      }
+
+      // Check Budget (Fase 5)
+      const budgetCheck = dispatcher.budgetController.canExecute(user, 'execute')
+      if (!budgetCheck.allowed) {
+        res.status(402).json({ error: 'Budget exceeded for execute actions' })
+        return
+      }
+
+      // Request Approval for critical action (Fase 5)
+      const approval = dispatcher.approvalSystem.createRequest(
+        'sandbox_exec',
+        { cmd: cmd.substring(0, 100), cwd },
+        'critical',
+        'Execute command in isolated sandbox'
+      )
+
+      const approved = await dispatcher.approvalSystem.waitForApproval(approval.id)
+      if (!approved.approved) {
+        res.status(403).json({
+          error: `Execution denied: ${approved.reason || 'approval timeout'}`,
+        })
+        return
+      }
+
+      // Execute in sandbox
+      const result = await dispatcher.sandboxManager.exec(cmd, {
+        cwd,
+        timeout,
+        env: { USER_ID: user },
+      })
+
+      // Debit cost ($50 per exec)
+      dispatcher.budgetController.debit(user, 50.0)
+
+      res.json(result)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
   })
 
   // ── Checkpoints (Fase 5) ─────────────────────────────────────────────────────
