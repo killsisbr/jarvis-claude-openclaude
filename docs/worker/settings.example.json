@@ -1,0 +1,37 @@
+{
+  "description": "Exemplo de settings.json para JARVIS Worker. Copie para ~/.jarvis/settings.json.",
+  "smartRouting": {
+    "enabled": true,
+    "targets": {
+      "simple": "deepseek-chat",
+      "reasoning": "claude-sonnet-4-5",
+      "code": "claude-sonnet-4-5",
+      "vision": "claude-sonnet-4-5",
+      "strong": "claude-sonnet-4-5"
+    }
+  },
+  "agentModels": {
+    "deepseek": {
+      "base_url": "https://api.deepseek.com/v1",
+      "api_keys_env": "DEEPSEEK_API_KEY_*",
+      "model": "deepseek-chat",
+      "rotation": "round-robin",
+      "cooldown_ms": 60000
+    },
+    "zen": {
+      "base_url": "https://api.zenops.io/v1",
+      "api_keys_env": "ZEN_API_KEY_*",
+      "model": "claude-sonnet-4-5",
+      "rotation": "round-robin",
+      "cooldown_ms": 60000
+    },
+    "nvidia": {
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_keys_env": "NVIDIA_API_KEY_*",
+      "model": "meta/llama-3.1-405b-instruct",
+      "rotation": "round-robin",
+      "cooldown_ms": 60000
+    }
+  },
+  "systemPrompt": "Você é JARVIS, um assistente de IA especializado em desenvolvimento de software. Seja conciso, preciso e direto. Responda em português quando o usuário escrever em português."
+}

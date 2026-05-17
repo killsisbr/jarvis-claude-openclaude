@@ -65,7 +65,9 @@
     "doctor:report": "bun run scripts/system-check.ts --out reports/doctor-runtime.json",
     "hardening:check": "bun run smoke && bun run doctor:runtime",
     "hardening:strict": "bun run typecheck && bun run hardening:check",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "worker": "bun run src/worker/main.ts",
+    "worker:dev": "WORKER_PORT=3000 bun run --watch src/worker/main.ts"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "0.3.0",
@@ -81,6 +83,7 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "@orama/orama": "^3.1.18",
     "@orama/plugin-data-persistence": "^3.1.18",
+    "@types/express": "^5.0.6",
     "@vscode/ripgrep": "^1.17.1",
     "ajv": "8.18.0",
     "auto-bind": "5.0.1",
@@ -98,6 +101,7 @@
     "emoji-regex": "10.6.0",
     "env-paths": "3.0.0",
     "execa": "9.6.1",
+    "express": "^5.2.1",
     "fflate": "0.8.2",
     "figures": "6.1.0",
     "fuse.js": "7.1.0",
