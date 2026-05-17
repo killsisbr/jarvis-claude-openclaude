@@ -15,7 +15,7 @@
 | 2 | Worker Standalone (main.ts + healthcheck completo) | ✅ Concluído |
 | 3 | WhatsApp Baileys + Intent Router + Chat State Machine | ✅ Concluído |
 | 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ✅ Concluído |
-| 5 | Budget + Cache + Approval + Checkpoints + PlanMode | ⏳ **PRÓXIMO** — CORE |
+| 5 | Budget + Cache + Approval + Checkpoints + PlanMode | ✅ Concluído |
 | 6 | Sentinela + Cron embutido + Relatórios | ⏳ Pendente — CORE |
 | 7 | Docker + Sandbox + Skills System | ⏳ Pendente |
 | 8 | PC CLI Bridge (opcional, do JARVIS 5.0) | ⏳ Idea |
@@ -419,12 +419,12 @@
 
 ---
 
-## RESUMO DE PROGRESSO (2026-05-16)
+## RESUMO DE PROGRESSO (2026-05-17)
 
-**Fases concluídas**: 4 de 7 (57%)  
-**Linhas de código**: ~2700 LOC (Fases 1-4 + integrações)  
-**Próxima fase**: Fase 5 (Budget + Approval + Checkpoints + PlanMode)  
-**Tempo estimado para produção**: ~4 dias (Fases 5-7)
+**Fases concluídas**: 5 de 7 (71%)  
+**Linhas de código**: ~3900 LOC (Fases 1-5 + integrações)  
+**Próxima fase**: Fase 6 (Sentinelas + Cron)  
+**Tempo estimado para produção**: ~3 dias (Fases 6-7)
 
 **Status por componente:**
 
