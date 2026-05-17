@@ -124,6 +124,177 @@ export function createServer(
     })
   })
 
+  // ── Approval System (Fase 5) ─────────────────────────────────────────────────
+
+  app.post('/api/approve/:id', (req: Request, res: Response) => {
+    const { id } = req.params
+    const { approver } = req.body as { approver?: string }
+
+    if (!dispatcher?.approvalSystem) {
+      res.status(503).json({ error: 'Approval system not initialized' })
+      return
+    }
+
+    const result = dispatcher.approvalSystem.approve(id, approver || 'api')
+    if (result.success) {
+      res.json({ success: true, request: result.request })
+    } else {
+      res.status(400).json({ error: result.error })
+    }
+  })
+
+  app.post('/api/deny/:id', (req: Request, res: Response) => {
+    const { id } = req.params
+    const { reason } = req.body as { reason?: string }
+
+    if (!dispatcher?.approvalSystem) {
+      res.status(503).json({ error: 'Approval system not initialized' })
+      return
+    }
+
+    const result = dispatcher.approvalSystem.deny(id, reason || 'Denied via API')
+    if (result.success) {
+      res.json({ success: true, request: result.request })
+    } else {
+      res.status(400).json({ error: result.error })
+    }
+  })
+
+  app.get('/api/approvals/pending', (_req: Request, res: Response) => {
+    if (!dispatcher?.approvalSystem) {
+      res.status(503).json({ error: 'Approval system not initialized' })
+      return
+    }
+
+    res.json({
+      pending: dispatcher.approvalSystem.getPending(),
+      stats: dispatcher.approvalSystem.getStats(),
+    })
+  })
+
+  // ── Budget Controller (Fase 5) ───────────────────────────────────────────────
+
+  app.get('/api/budget/:userId', (req: Request, res: Response) => {
+    const { userId } = req.params
+
+    if (!dispatcher?.budgetController) {
+      res.status(503).json({ error: 'Budget controller not initialized' })
+      return
+    }
+
+    const quota = dispatcher.budgetController.getQuota(userId)
+    res.json(quota)
+  })
+
+  app.get('/api/budget/all/today', (_req: Request, res: Response) => {
+    if (!dispatcher?.budgetController) {
+      res.status(503).json({ error: 'Budget controller not initialized' })
+      return
+    }
+
+    res.json({ quotas: dispatcher.budgetController.getAllQuotas() })
+  })
+
+  app.put('/api/budget/:userId/limit', (req: Request, res: Response) => {
+    const { userId } = req.params
+    const { limit } = req.body as { limit?: number }
+
+    if (!limit || limit < 0) {
+      res.status(400).json({ error: 'Invalid limit' })
+      return
+    }
+
+    if (!dispatcher?.budgetController) {
+      res.status(503).json({ error: 'Budget controller not initialized' })
+      return
+    }
+
+    dispatcher.budgetController.setLimit(userId, limit)
+    res.json({ success: true, userId, newLimit: limit })
+  })
+
+  // ── Plan Mode (Fase 5) ───────────────────────────────────────────────────────
+
+  app.get('/api/mode', (_req: Request, res: Response) => {
+    if (!dispatcher?.planModeManager) {
+      res.status(503).json({ error: 'Plan mode not initialized' })
+      return
+    }
+
+    res.json({
+      current: dispatcher.planModeManager.getCurrent(),
+      available: dispatcher.planModeManager.list(),
+      permissions: dispatcher.planModeManager.getCurrentPermissions(),
+    })
+  })
+
+  app.put('/api/mode', (req: Request, res: Response) => {
+    const { mode } = req.body as { mode?: string }
+
+    if (!mode) {
+      res.status(400).json({ error: 'Mode required' })
+      return
+    }
+
+    if (!dispatcher?.planModeManager) {
+      res.status(503).json({ error: 'Plan mode not initialized' })
+      return
+    }
+
+    const result = dispatcher.planModeManager.activate(mode)
+    if ('status' in result) {
+      res.json(result)
+    } else {
+      res.status(400).json(result)
+    }
+  })
+
+  // ── Checkpoints (Fase 5) ─────────────────────────────────────────────────────
+
+  app.get('/api/checkpoints', (_req: Request, res: Response) => {
+    if (!dispatcher?.checkpointManager) {
+      res.status(503).json({ error: 'Checkpoint manager not initialized' })
+      return
+    }
+
+    res.json({ checkpoints: dispatcher.checkpointManager.list() })
+  })
+
+  app.post('/api/checkpoints', (req: Request, res: Response) => {
+    const { name, files } = req.body as { name?: string; files?: Record<string, string> }
+
+    if (!name) {
+      res.status(400).json({ error: 'Name required' })
+      return
+    }
+
+    if (!dispatcher?.checkpointManager) {
+      res.status(503).json({ error: 'Checkpoint manager not initialized' })
+      return
+    }
+
+    dispatcher.checkpointManager.create(name, { files }).then((checkpoint) => {
+      res.json({ success: true, checkpoint })
+    })
+  })
+
+  app.post('/api/checkpoints/:id/restore', (req: Request, res: Response) => {
+    const { id } = req.params
+
+    if (!dispatcher?.checkpointManager) {
+      res.status(503).json({ error: 'Checkpoint manager not initialized' })
+      return
+    }
+
+    dispatcher.checkpointManager.restore(id).then((result) => {
+      if (result.error) {
+        res.status(400).json(result)
+      } else {
+        res.json(result)
+      }
+    })
+  })
+
   // Error handler ───────────────────────────────────────────────────────────────
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

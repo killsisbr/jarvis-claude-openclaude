@@ -131,6 +131,42 @@ function initializeSchema(): void {
   database.run(`CREATE INDEX IF NOT EXISTS idx_learning_index_user ON learning_index(userId)`);
   database.run(`CREATE INDEX IF NOT EXISTS idx_learning_index_nextReview ON learning_index(nextReviewAt)`);
 
+  // Approval requests (Fase 5)
+  database.run(`CREATE TABLE IF NOT EXISTS approval_requests (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL,
+    action TEXT NOT NULL,
+    params TEXT NOT NULL,
+    dangerLevel TEXT NOT NULL CHECK(dangerLevel IN ('low', 'medium', 'high', 'critical')),
+    status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'denied')) DEFAULT 'pending',
+    createdAt INTEGER NOT NULL,
+    respondedAt INTEGER,
+    respondedBy TEXT,
+    responseReason TEXT,
+    expiresAt INTEGER NOT NULL,
+    FOREIGN KEY(userId) REFERENCES sessions(userId)
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_approval_pending ON approval_requests(status, expiresAt)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_approval_user ON approval_requests(userId)`);
+
+  // Action history (Fase 5)
+  database.run(`CREATE TABLE IF NOT EXISTS action_history (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL,
+    action TEXT NOT NULL,
+    cost REAL DEFAULT 0,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'executing', 'success', 'failed')) DEFAULT 'pending',
+    checkpointId TEXT,
+    createdAt INTEGER NOT NULL,
+    completedAt INTEGER,
+    errorMsg TEXT,
+    FOREIGN KEY(userId) REFERENCES sessions(userId)
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_action_user ON action_history(userId)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_action_status ON action_history(status)`);
+
   console.log("[schema] ✓ Database schema initialized");
 }
 

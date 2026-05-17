@@ -6,6 +6,11 @@ import { WhatsAppMessage } from "./gateways/whatsapp";
 import { JarvisWorker } from "./worker-core";
 import * as sessionDb from "./db/sessions";
 import { AutoSave } from "./auto-save";
+import { ApprovalSystem } from "./approval";
+import { BudgetController } from "./budget";
+import { CheckpointManager } from "./checkpoints";
+import { PlanModeManager } from "./plan-mode";
+import { getDatabase } from "./db/schema";
 
 export interface DispatchEvent {
   messageId: string;
@@ -27,6 +32,12 @@ export class MessageDispatcher extends EventEmitter {
   private worker: JarvisWorker;
   private autoSave: AutoSave;
 
+  // Fase 5 systems
+  approvalSystem: ApprovalSystem;
+  budgetController: BudgetController;
+  checkpointManager: CheckpointManager;
+  planModeManager: PlanModeManager;
+
   constructor(worker: JarvisWorker) {
     super();
     this.worker = worker;
@@ -39,6 +50,13 @@ export class MessageDispatcher extends EventEmitter {
         await fn();
       }
     }, { delayMs: 1000 });
+
+    // Initialize Fase 5 systems
+    const db = getDatabase();
+    this.approvalSystem = new ApprovalSystem(db);
+    this.budgetController = new BudgetController(db);
+    this.checkpointManager = new CheckpointManager();
+    this.planModeManager = new PlanModeManager();
 
     this.setupGatewayListeners();
   }
@@ -78,6 +96,26 @@ export class MessageDispatcher extends EventEmitter {
       // Detect intent
       const intent = await this.intentRouter.detectIntent(messageText);
       await session.startWork(intent.category, intent.suggestedProject);
+
+      // Fase 5: Check PlanMode permissions
+      const planCheck = this.planModeManager.checkPermission("bash");
+      if (!planCheck.allowed) {
+        await this.gateway.sendMessage(
+          whatsAppMsg.chatId,
+          `⛔ Operação bloqueada pelo modo ${this.planModeManager.getCurrent()}`
+        );
+        return;
+      }
+
+      // Fase 5: Check budget
+      const budgetCheck = this.budgetController.canExecute(whatsAppMsg.senderId, "analyze");
+      if (!budgetCheck.allowed) {
+        await this.gateway.sendMessage(
+          whatsAppMsg.chatId,
+          `💰 Orçamento diário esgotado. Resete amanhã.`
+        );
+        return;
+      }
 
       // Build prompt context
       const sessionData = session.getData();
