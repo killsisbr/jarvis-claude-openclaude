@@ -82,83 +82,131 @@
 
 ---
 
-## FASE 3 — WhatsApp Gateway
+## FASE 3 — WhatsApp Gateway (REVISADA pós JARVIS 4.5 audit)
 
 **Status**: ⏳ Pendente  
-**Meta**: conectar ao WhatsApp via Evolution API (self-hosted) ou baileys.
+**Meta**: conectar ao WhatsApp via **whatsapp-web.js** (não mais Evolution API).
+
+> **Decisão de arquitetura**: análise do `JARVIS-4.5` (ver [IDEIAS-JARVIS-4.5.md](docs/worker/IDEIAS-JARVIS-4.5.md))
+> mostrou que `whatsapp-web.js` (wwebjs) com LocalAuth é mais simples, sem Docker
+> overhead. Evolution API fica como fallback opcional.
 
 ### Tarefas
 
+- [ ] `bun add whatsapp-web.js qrcode` (dependências)
 - [ ] `src/worker/gateways/whatsapp.ts` — interface abstrata `WhatsAppGateway`
-- [ ] `src/worker/gateways/evolution.ts` — implementação Evolution API
+- [ ] `src/worker/gateways/wwebjs.ts` — implementação com wwebjs + LocalAuth
+- [ ] `src/worker/gateways/evolution.ts` — implementação Evolution API (opcional)
+- [ ] `src/worker/intent-router.ts` — regex pre-classification (portado do JARVIS 4.5)
+- [ ] `src/worker/messages.ts` — templates de mensagens centralizadas
 - [ ] `src/worker/dispatcher.ts` — orquestra: webhook → JARVIS Worker → resposta
-- [ ] `src/worker/server.ts` — adicionar rota `POST /webhooks/whatsapp`
-- [ ] Gerenciamento de sessão por número de telefone
-- [ ] Reconexão automática
-- [ ] Documentação (`docs/worker/FASE3-WHATSAPP.md`)
-- [ ] docker-compose.yml com Evolution API
+- [ ] `src/worker/server.ts` — adicionar `GET /qrcode` para escaneamento
+- [ ] QR code auto-restart + max attempts (5)
+- [ ] Auto-reconnect em disconnected (10s delay)
+- [ ] Chrome path autodetect (Windows/Linux)
+- [ ] Documentação (`docs/worker/FASE3-WHATSAPP.md` — atualizar)
 
 ### Critério de aceite
 
 - ✅ Mensagem no WhatsApp → JARVIS responde em < 5s
 - ✅ Desconexão → reconexão automática em < 30s
-- ✅ Webhook POST `/webhooks/whatsapp` processa correctamente
+- ✅ Intent router classifica 90% por regex (sem LLM call)
+- ✅ Sessão WhatsApp persiste entre restarts (LocalAuth)
 
 ---
 
-## FASE 4 — Session Store SQLite
+## FASE 4 — Session Store SQLite (EXPANDIDA pós JARVIS 4.5 audit)
 
-**Meta**: persistência real de conversas e memória.
+**Status**: ⏳ Pendente  
+**Meta**: persistência real de conversas, knowledge graph e learnings.
+
+> Análise do JARVIS 4.5 adicionou: ChatSession state machine, KnowledgeGraph BFS,
+> Spaced Repetition, Learning Pipeline.
 
 ### Tarefas
 
-- [ ] `src/worker/db/schema.ts` — schema SQLite
-- [ ] `src/worker/db/sessions.ts` — CRUD de sessões e mensagens
-- [ ] `src/worker/db/memory.ts` — knowledge graph multi-usuário
-- [ ] `src/worker/memory-extractor.ts` — extração automática pós-resposta
+- [ ] `bun add better-sqlite3 @types/better-sqlite3`
+- [ ] `src/worker/db/schema.ts` — schema SQLite com 7 tabelas:
+  - sessions (chatId, state, currentProject, intent, idleSince, autoCloseAt)
+  - messages (sessionId, role, content, tokens, cost, metadata)
+  - budget_daily (user_phone, date, cost, tokens)
+  - entities (knowledge graph nodes — id, type, properties, weight)
+  - relations (knowledge graph edges — source, target, type, weight)
+  - learnings (id, type, category, confidence, relevance, nextReviewAt)
+  - learning_index (cross-reference + spaced repetition)
+- [ ] `src/worker/db/sessions.ts` — CRUD com state machine (CRIADO→ATIVO→COMPLETO→FECHADO)
+- [ ] `src/worker/db/memory.ts` — KnowledgeGraph com BFS findConnected()
+- [ ] `src/worker/db/learnings.ts` — Pipeline propose/validate/register
+- [ ] `src/worker/memory-extractor.ts` — extração automática pós-resposta (Haiku)
+- [ ] `src/worker/auto-save.ts` — debounced batch writes (1s delay)
 - [ ] Documentação (`docs/worker/FASE4-SQLITE.md`)
 
 ### Critério de aceite
 
-- Histórico persiste entre restarts
-- Query semântica retorna entidade correta
+- Histórico persiste entre restarts (LocalAuth + SQLite)
+- Knowledge graph BFS retorna entidades relacionadas em 2 hops
+- Spaced repetition agenda reviews (1d, 3d, 7d, 14d, 30d, 60d)
+- Sessões auto-save a cada 30s (não a cada mensagem)
 
 ---
 
-## FASE 5 — Budget Controller
+## FASE 5 — Budget + Semantic Cache (EXPANDIDA)
 
-**Meta**: controle de gastos por usuário com alertas.
+**Status**: ⏳ Pendente  
+**Meta**: controle de gastos por usuário + cache de respostas.
+
+> JARVIS 4.5 mostrou que cache SHA-256 + TTL economiza ~30% das chamadas LLM.
 
 ### Tarefas
 
 - [ ] `src/worker/budget.ts` — `BudgetController`
 - [ ] Limite diário por usuário
+- [ ] Limite global
 - [ ] Alerta a 80% do limite
 - [ ] Bloqueio automático ao estourar
-- [ ] Documentação (`docs/worker/FASE5-BUDGET.md`)
+- [ ] `src/worker/response-cache.ts` — semantic cache file-based
+  - SHA-256 do prompt (lowercase + trim)
+  - TTL configurável por categoria (status=5min, code=1h, explain=24h)
+  - LRU eviction quando > 1000 entries
+  - Stats: hits/misses/hit_rate
+- [ ] Documentação (`docs/worker/FASE5-BUDGET-CACHE.md`)
 
 ### Critério de aceite
 
 - Usuário bloqueado ao atingir limite diário
 - Alerta enviado ao atingir 80%
+- Cache hit rate > 20% em uso típico
+- `/api/cost` mostra economia por cache
 
 ---
 
-## FASE 6 — Sentinela + Relatórios
+## FASE 6 — Sentinela + Cron + Relatórios
 
-**Meta**: monitoramento pró-ativo e relatórios automáticos.
+**Status**: ⏳ Pendente  
+**Meta**: monitoramento pró-ativo + cron jobs internos.
+
+> Padrão CronSystem do JARVIS 4.5: `schedule(name, ms, fn)` sem dependência externa.
 
 ### Tarefas
 
-- [ ] `src/worker/sentinels.ts` — sentinela de custo + chaves
-- [ ] Relatório diário (meia-noite)
-- [ ] Alertas de 429 e cooldown
+- [ ] `src/worker/cron-scheduler.ts` — CronSystem com setInterval
+  - API: `schedule(name, ms, fn)` / `cancel(name)`
+  - Logging automático de execuções
+  - Error handling (não derruba outros jobs)
+- [ ] `src/worker/sentinels.ts` — handlers para os jobs:
+  - `cost-sentinel` (5min): alerta se gasto > limite
+  - `key-health-check` (1min): rotaciona pool em 429
+  - `daily-report` (24h meia-noite): envia resumo WhatsApp
+  - `memory-consolidation` (4h): roda extração de aprendizados
+  - `spaced-repetition-decay` (24h): aplica decay nos learnings
 - [ ] Documentação (`docs/worker/FASE6-SENTINELAS.md`)
 
 ### Critério de aceite
 
 - Sentinela detecta 429 e rotaciona pool automaticamente
 - Relatório diário enviado à meia-noite
+- Cron jobs sobrevivem a errors individuais
+- `/api/cron` lista status de todos os jobs
 
 ---
 
