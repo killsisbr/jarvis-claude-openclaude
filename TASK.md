@@ -3,7 +3,7 @@
 > Construção do KAIROS: worker headless 24/7 com API REST + WhatsApp
 
 **Início**: 2026-05-16  
-**Última atualização**: 2026-05-16
+**Última atualização**: 2026-05-16 (pós seleção CORE)
 
 ---
 
@@ -13,12 +13,69 @@
 |------|-----------|--------|
 | 1 | Worker Headless (core + Express básico) | ✅ Concluído |
 | 2 | Worker Standalone (main.ts + healthcheck completo) | ✅ Concluído |
-| 3 | WhatsApp Gateway via **Baileys** + Intent Router | ⏳ Pendente |
-| 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ⏳ Pendente |
-| 5 | Budget + Cache + **Approval + Checkpoints + PlanMode** | ⏳ Pendente |
-| 6 | Sentinela + Cron + Relatórios | ⏳ Pendente |
-| 7 | Docker + Sandbox + **Skills System** | ⏳ Pendente |
+| 3 | WhatsApp Baileys + Intent Router + Chat State Machine | ⏳ Pendente — CORE |
+| 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ⏳ Pendente — CORE |
+| 5 | Budget + Cache + Approval + Checkpoints + PlanMode | ⏳ Pendente — CORE |
+| 6 | Sentinela + Cron embutido + Relatórios | ⏳ Pendente — CORE |
+| 7 | Docker + Sandbox + Skills System | ⏳ Pendente |
 | 8 | PC CLI Bridge (opcional, do JARVIS 5.0) | ⏳ Idea |
+
+---
+
+## MELHORIAS CORE APROVADAS (2026-05-16)
+
+> Resultado da auditoria JARVIS 4.5 + 5.0. Tudo listado abaixo está **confirmado**
+> para entrar nas Fases 3-6 (CORE). Documentos: [IDEIAS-JARVIS-4.5.md](docs/worker/IDEIAS-JARVIS-4.5.md),
+> [IDEIAS-JARVIS-5.0.md](docs/worker/IDEIAS-JARVIS-5.0.md).
+
+### Bloco essencial — TUDO entra no plano
+
+| # | Melhoria | Fonte | Fase destino | Motivo |
+|---|---|---|---|---|
+| 1 | **Intent Router** (regex 11 cats PT-BR + LLM fallback) | 4.5 | Fase 3 | 90% das classificações grátis < 1ms |
+| 2 | **Chat State Machine** (CRIADO→ATIVO→COMPLETO→FECHADO) | 4.5 | Fase 3 | Auto-close 24h, persistência por user |
+| 3 | **ApprovalSystem** (Y/n + DANGER_LEVELS + timeout 5min) | 5.0 | Fase 5 | Pré-requisito antes de `/api/exec` |
+| 4 | **Baileys WhatsApp** (50MB, sem Chromium) | 5.0 | Fase 3 | Substitui wwebjs (200MB) e Evolution API |
+| 5 | **Checkpoints** (snapshots de arquivos + restore) | 5.0 | Fase 5 | Safety antes de edits destrutivos |
+| 6 | **Plan Mode** (READONLY/SANDBOX/PRODUCTION) | 5.0 | Fase 5 | Controle de blast radius |
+| 7 | **Cron embutido** (`schedule(name, ms, fn)`) | 4.5 | Fase 6 | Sem dep externa, padrão maduro |
+| 8 | **Debounced saves** (universal) | 4.5 | Fases 4-6 | Zero I/O em hot path |
+
+### Bloco bônus — entra na Fase 7+
+
+| # | Melhoria | Fonte | Fase destino | Motivo |
+|---|---|---|---|---|
+| 9 | **Docker Sandbox** (`--network none` + mem/cpu) | 5.0 | Fase 7 | Necessário para `/api/exec` em prod |
+| 10 | **Skill System** (pasta + hooks, API Anthropic-style) | 5.0 | Fase 7 | Extensibilidade sem tocar no core |
+| 11 | **Spaced Repetition + Decay** (relevância cai) | 4.5 | Fase 4 | Auto-limpeza de learnings velhos |
+| 12 | **Knowledge Graph BFS** (entidades + `findConnected`) | 4.5 | Fase 4 | Memória relacional multi-usuário |
+| 13 | **Semantic Cache** (SHA-256 + TTL) | 4.5 | Fase 5 | ~30% economia LLM em uso típico |
+| 14 | **WebSocket Bridge + fila offline** | 5.0 | Fase 8 | PC CLI bridge (opcional) |
+
+### Descartado explicitamente (não revisitar)
+
+- ❌ **Consciousness / metacognition** — sem benefício mensurável
+- ❌ **Auto-Evolution / Self-Improver / DNA Evolver** — perigosos mesmo com pipeline 8 estágios
+- ❌ **22 specialist agents** — excesso de granularidade, manutenção infernal
+- ❌ **Swarm Learning via Git** — 430 LOC só de orchestration, ROI baixo single-tenant
+- ❌ **opencode-zen "Big Pickle"** — proprietário, sem fallback testado
+- ❌ **MCP/Discord/Telegram stubs** — já descartados na própria 4.5
+- ❌ **148 scripts MJS de diagnóstico** — caos; 1-2 scripts bem feitos bastam
+
+---
+
+## PADRÕES DE ENGENHARIA OBRIGATÓRIOS
+
+> Toda nova implementação deve seguir estes padrões (do JARVIS 4.5/5.0 e do OC).
+
+1. **Debounced save** em todo módulo persistente (1s delay)
+2. **Offline-first com timeout** em toda chamada externa
+3. **`execFile` + allowlist** (NUNCA `exec()`) para qualquer execução de comando
+4. **Módulos < 500 LOC** focados em uma responsabilidade
+5. **State machine explícita** em qualquer fluxo de vida (sessões, tarefas, approvals)
+6. **EventEmitter** para extensibilidade (sem reinventar event bus)
+7. **Feature flags reais** em settings.json (sem `if (false)`)
+8. **Sanitização de logs** — nunca logar tokens/senhas (usar `sanitizeParams()`)
 
 ---
 
@@ -83,20 +140,21 @@
 
 ---
 
-## FASE 3 — WhatsApp Gateway (REVISADA 2x: 4.5 → 5.0)
+## FASE 3 — WhatsApp Baileys + Intent Router + Chat State Machine
 
-**Status**: ⏳ Pendente  
-**Meta**: conectar ao WhatsApp via **Baileys** (não mais wwebjs nem Evolution API).
+**Status**: ⏳ Pendente — CORE  
+**Meta**: conectar ao WhatsApp via Baileys, classificar intents por regex, gerenciar sessões com state machine.
 
-> **Decisão final**: auditoria do JARVIS 5.0 ([IDEIAS-JARVIS-5.0.md](docs/worker/IDEIAS-JARVIS-5.0.md))
-> mostrou que `@whiskeysockets/baileys` é superior — ~50MB RAM vs 200MB do wwebjs,
-> sem dependência de Chromium. Evolution API descartada.
+> **Melhorias CORE incluídas**: #1 Intent Router, #2 Chat State Machine, #4 Baileys.
 
 ### Tarefas
 
-- [ ] `bun add @whiskeysockets/baileys qrcode-terminal` (dependências)
-- [ ] `src/worker/gateways/whatsapp.ts` — interface abstrata `WhatsAppGateway`
-- [ ] `src/worker/gateways/baileys.ts` — implementação completa portada do 5.0:
+**Setup:**
+- [ ] 🔥 `bun add @whiskeysockets/baileys qrcode-terminal`
+
+**WhatsApp Gateway (Baileys — #4):**
+- [ ] 🔥 `src/worker/gateways/whatsapp.ts` — interface `WhatsAppGateway`
+- [ ] 🔥 `src/worker/gateways/baileys.ts` — implementação portada do JARVIS 5.0:
   - `useMultiFileAuthState` para persistência
   - Auto-admin assignment (primeira mensagem define admin)
   - Auto-reconnect exponential backoff (1s → 2s → 4s... max 30s, 5 tentativas)
@@ -104,9 +162,24 @@
   - Imagem: download → Gemini Vision → análise
   - `sendDocument()` para anexos
   - `sendAlert()` para notificações proativas
-- [ ] `src/worker/intent-router.ts` — regex pre-classification (do 4.5)
-- [ ] `src/worker/messages.ts` — templates de mensagens
-- [ ] `src/worker/dispatcher.ts` — orquestra: msg → IntentRouter → Worker → resposta
+
+**Intent Router (#1):**
+- [ ] 🔥 `src/worker/intent-router.ts` — regex 11 categorias PT-BR (do JARVIS 4.5)
+  - CREATE/FIX/DEPLOY/EXPLAIN/DEBUG/STATUS/ARCHITECT/REVIEW/SUPPORT/CLOSE/UNKNOWN
+  - Fast path: regex < 1ms (90% dos casos)
+  - Slow path: LLM fallback para os 10% ambíguos
+  - `detectProject()` + `extractEntities()` (files/commands/paths/errors)
+
+**Chat State Machine (#2):**
+- [ ] 🔥 `src/worker/chat-session.ts` — state machine portada do 4.5
+  - 6 estados: CRIADO/ANALISANDO/ATIVO/AGUARDANDO/COMPLETO/FECHADO
+  - Auto-close 24h de inatividade
+  - Auto-save a cada 30s
+  - Reabertura de sessão fechada
+
+**Orquestração:**
+- [ ] `src/worker/messages.ts` — templates de mensagens centralizadas (TASK_START, WELCOME, HELP, etc.)
+- [ ] `src/worker/dispatcher.ts` — orquestra: msg → IntentRouter → ChatSession → Worker → resposta
 - [ ] `src/worker/server.ts` — adicionar `GET /api/whatsapp/qr` + `/api/whatsapp/status`
 - [ ] Documentação (`docs/worker/FASE3-WHATSAPP.md` — atualizar para Baileys)
 
@@ -120,17 +193,19 @@
 
 ---
 
-## FASE 4 — Session Store SQLite (EXPANDIDA pós JARVIS 4.5 audit)
+## FASE 4 — Session Store SQLite + KnowledgeGraph + SpacedRep
 
-**Status**: ⏳ Pendente  
+**Status**: ⏳ Pendente — CORE  
 **Meta**: persistência real de conversas, knowledge graph e learnings.
 
-> Análise do JARVIS 4.5 adicionou: ChatSession state machine, KnowledgeGraph BFS,
-> Spaced Repetition, Learning Pipeline.
+> **Melhorias CORE incluídas**: #8 Debounced saves. **Melhorias bônus**: #11 Spaced Repetition + Decay, #12 Knowledge Graph BFS.
 
 ### Tarefas
 
+**Setup:**
 - [ ] `bun add better-sqlite3 @types/better-sqlite3`
+
+**Schema:**
 - [ ] `src/worker/db/schema.ts` — schema SQLite com 7 tabelas:
   - sessions (chatId, state, currentProject, intent, idleSince, autoCloseAt)
   - messages (sessionId, role, content, tokens, cost, metadata)
@@ -139,11 +214,24 @@
   - relations (knowledge graph edges — source, target, type, weight)
   - learnings (id, type, category, confidence, relevance, nextReviewAt)
   - learning_index (cross-reference + spaced repetition)
-- [ ] `src/worker/db/sessions.ts` — CRUD com state machine (CRIADO→ATIVO→COMPLETO→FECHADO)
-- [ ] `src/worker/db/memory.ts` — KnowledgeGraph com BFS findConnected()
-- [ ] `src/worker/db/learnings.ts` — Pipeline propose/validate/register
+
+**CRUD + State Machine:**
+- [ ] `src/worker/db/sessions.ts` — CRUD integrado com ChatSession state machine (Fase 3)
+
+**Knowledge Graph BFS (#12):**
+- [ ] `src/worker/db/memory.ts` — `findConnected(nodeId, maxDepth=2)` com weight tracking
 - [ ] `src/worker/memory-extractor.ts` — extração automática pós-resposta (Haiku)
-- [ ] `src/worker/auto-save.ts` — debounced batch writes (1s delay)
+
+**Spaced Repetition + Decay (#11):**
+- [ ] `src/worker/db/learnings.ts` — Pipeline propose/validate/register
+  - REVIEW_INTERVALS_DAYS = [1, 3, 7, 14, 30, 60]
+  - DECAY_RATE = 0.02 (2% por dia inativo)
+  - Garbage collection: relevance < 0.05 + 90 dias inativo + LOW conf → delete
+
+**Debounced Saves (#8) — padrão universal:**
+- [ ] 🔥 `src/worker/auto-save.ts` — batch writes 1s delay para todos os módulos persistentes
+
+**Docs:**
 - [ ] Documentação (`docs/worker/FASE4-SQLITE.md`)
 
 ### Critério de aceite
@@ -155,41 +243,51 @@
 
 ---
 
-## FASE 5 — Budget + Cache + Approval + Checkpoints (EXPANDIDA 2x)
+## FASE 5 — Budget + Cache + Approval + Checkpoints + PlanMode
 
-**Status**: ⏳ Pendente  
-**Meta**: controle de gastos + cache + segurança em mudanças destrutivas.
+**Status**: ⏳ Pendente — CORE  
+**Meta**: controle de gastos + cache de respostas + segurança em mudanças destrutivas.
 
-> Auditoria 5.0 adicionou: ApprovalSystem (Y/n DANGER_LEVELS), Checkpoints
-> (snapshots de arquivos), Plan Mode (READONLY/SANDBOX/PROD). Críticos antes
-> de expor `/api/exec`.
+> **Melhorias CORE incluídas**: #3 ApprovalSystem, #5 Checkpoints, #6 Plan Mode. **Melhorias bônus**: #13 Semantic Cache.
 
 ### Tarefas
 
-**Budget + Cache:**
+**Budget Controller:**
 - [ ] `src/worker/budget.ts` — BudgetController com limite por usuário + global
 - [ ] Alerta a 80% + bloqueio automático ao estourar
-- [ ] `src/worker/response-cache.ts` — semantic cache file-based
-  - SHA-256 do prompt
+
+**Semantic Cache (#13):**
+- [ ] `src/worker/response-cache.ts` — file-based cache
+  - SHA-256 do prompt (lowercase + trim)
   - TTL por categoria (status=5min, code=1h, explain=24h)
   - LRU eviction > 1000 entries
+  - Stats: hits/misses/hit_rate
 
-**Segurança (do JARVIS 5.0):**
-- [ ] `src/worker/approval-system.ts` — Y/n com DANGER_LEVELS
-  - 4 níveis: low/medium/high/critical
-  - sanitizeParams() para mascarar tokens
+**ApprovalSystem (#3) — pré-requisito para `/api/exec`:**
+- [ ] 🔥 `src/worker/approval-system.ts` — Y/n com DANGER_LEVELS portado do 5.0
+  - 4 níveis: low/medium/high/critical (high+critical pedem aprovação)
+  - sanitizeParams() para mascarar tokens/senhas em logs
   - waitForApproval(id, timeout=5min)
   - History de 100 approvals
-- [ ] `src/worker/checkpoints.ts` — snapshots de arquivos
+  - EventEmitter (approved/denied/requested)
+
+**Checkpoints (#5) — antes de edits destrutivos:**
+- [ ] 🔥 `src/worker/checkpoints.ts` — snapshots de arquivos portado do 5.0
   - create(name, files) → checkpointId
   - restore(checkpointId) → restaura arquivos
-  - BranchManager opcional para multiple states
-- [ ] `src/worker/plan-mode.ts` — 4 modos de operação
-  - ANALYSIS: só leitura + network
-  - READONLY: só leitura
-  - SANDBOX: write + bash + sem network
+  - BranchManager opcional para múltiplos estados
+  - Persistência JSON em `~/.jarvis/checkpoints/`
+
+**Plan Mode (#6) — controle de blast radius:**
+- [ ] 🔥 `src/worker/plan-mode.ts` — 4 modos de operação portado do 5.0
+  - ANALYSIS: só leitura + network (read-only research)
+  - READONLY: só leitura, sem network, sem MCP
+  - SANDBOX: write + bash + sem network (testes seguros)
   - PRODUCTION: tudo liberado
   - `manager.checkPermission(action, target)` antes de cada tool
+  - Integrado com ApprovalSystem (PRODUCTION + critical → aprovação)
+
+**Docs:**
 - [ ] Documentação (`docs/worker/FASE5-SECURITY.md`)
 
 ### Critério de aceite
@@ -202,25 +300,36 @@
 
 ---
 
-## FASE 6 — Sentinela + Cron + Relatórios
+## FASE 6 — Cron embutido + Sentinelas + Relatórios
 
-**Status**: ⏳ Pendente  
-**Meta**: monitoramento pró-ativo + cron jobs internos.
+**Status**: ⏳ Pendente — CORE  
+**Meta**: monitoramento pró-ativo + cron jobs internos sem dep externa.
 
-> Padrão CronSystem do JARVIS 4.5: `schedule(name, ms, fn)` sem dependência externa.
+> **Melhorias CORE incluídas**: #7 Cron embutido (`schedule(name, ms, fn)`).
 
 ### Tarefas
 
-- [ ] `src/worker/cron-scheduler.ts` — CronSystem com setInterval
-  - API: `schedule(name, ms, fn)` / `cancel(name)`
+**Cron Scheduler (#7):**
+- [ ] 🔥 `src/worker/cron-scheduler.ts` — CronSystem portado do JARVIS 4.5
+  - API: `schedule(name, ms, fn)` / `cancel(name)` / `list()`
+  - Sem dep externa (só `setInterval`)
   - Logging automático de execuções
-  - Error handling (não derruba outros jobs)
-- [ ] `src/worker/sentinels.ts` — handlers para os jobs:
-  - `cost-sentinel` (5min): alerta se gasto > limite
+  - Error handling isolado (1 job não derruba outros)
+  - `lastRun` tracking por job
+
+**Sentinelas (handlers dos jobs):**
+- [ ] `src/worker/sentinels.ts` — implementação dos jobs default:
+  - `health-check` (60s): alerta se CPU/RAM/disk > limite
   - `key-health-check` (1min): rotaciona pool em 429
-  - `daily-report` (24h meia-noite): envia resumo WhatsApp
-  - `memory-consolidation` (4h): roda extração de aprendizados
-  - `spaced-repetition-decay` (24h): aplica decay nos learnings
+  - `cost-sentinel` (5min): alerta se gasto > limite
+  - `memory-consolidation` (4h): extração de aprendizados via Haiku
+  - `daily-report` (24h meia-noite): resumo WhatsApp do dia
+  - `spaced-repetition-decay` (24h): aplica decay nos learnings (Fase 4)
+
+**Server endpoints:**
+- [ ] `src/worker/server.ts` — adicionar `GET /api/cron` (lista jobs + lastRun + status)
+
+**Docs:**
 - [ ] Documentação (`docs/worker/FASE6-SENTINELAS.md`)
 
 ### Critério de aceite
@@ -274,8 +383,6 @@
 - ✅ Worker reinicia com `restart: unless-stopped`
 - ✅ `POST /api/exec` roda em sandbox com timeout
 - ✅ Skills custom carregam de `worker/skills/`
-
----
 
 ---
 
