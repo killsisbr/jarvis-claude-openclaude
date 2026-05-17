@@ -28,6 +28,7 @@ import {
   evictExpiredSessions,
   type Session,
 } from './session-store.ts'
+import { getDatabase } from './db/schema.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -92,6 +93,9 @@ export class JarvisWorker {
     this.startedAt = new Date()
     this.logDir = config.logDir ?? join(homedir(), '.jarvis', 'worker-logs')
     initCycleRecorder(this.logDir)
+
+    // Initialize SQLite database (Fase 4)
+    getDatabase()
 
     // Limpar sessões expiradas a cada 15 min
     setInterval(() => evictExpiredSessions(), 15 * 60 * 1000)

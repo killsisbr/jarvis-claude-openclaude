@@ -13,9 +13,9 @@
 |------|-----------|--------|
 | 1 | Worker Headless (core + Express básico) | ✅ Concluído |
 | 2 | Worker Standalone (main.ts + healthcheck completo) | ✅ Concluído |
-| 3 | WhatsApp Baileys + Intent Router + Chat State Machine | ⏳ Pendente — CORE |
-| 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ⏳ Pendente — CORE |
-| 5 | Budget + Cache + Approval + Checkpoints + PlanMode | ⏳ Pendente — CORE |
+| 3 | WhatsApp Baileys + Intent Router + Chat State Machine | ✅ Concluído |
+| 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ✅ Concluído |
+| 5 | Budget + Cache + Approval + Checkpoints + PlanMode | ⏳ **PRÓXIMO** — CORE |
 | 6 | Sentinela + Cron embutido + Relatórios | ⏳ Pendente — CORE |
 | 7 | Docker + Sandbox + Skills System | ⏳ Pendente |
 | 8 | PC CLI Bridge (opcional, do JARVIS 5.0) | ⏳ Idea |
@@ -142,7 +142,7 @@
 
 ## FASE 3 — WhatsApp Baileys + Intent Router + Chat State Machine
 
-**Status**: ⏳ Pendente — CORE  
+**Status**: ✅ Concluído (2026-05-16)  
 **Meta**: conectar ao WhatsApp via Baileys, classificar intents por regex, gerenciar sessões com state machine.
 
 > **Melhorias CORE incluídas**: #1 Intent Router, #2 Chat State Machine, #4 Baileys.
@@ -150,11 +150,11 @@
 ### Tarefas
 
 **Setup:**
-- [ ] 🔥 `bun add @whiskeysockets/baileys qrcode-terminal`
+- [x] 🔥 `bun add @whiskeysockets/baileys qrcode-terminal`
 
 **WhatsApp Gateway (Baileys — #4):**
-- [ ] 🔥 `src/worker/gateways/whatsapp.ts` — interface `WhatsAppGateway`
-- [ ] 🔥 `src/worker/gateways/baileys.ts` — implementação portada do JARVIS 5.0:
+- [x] 🔥 `src/worker/gateways/whatsapp.ts` — interface `WhatsAppGateway`
+- [x] 🔥 `src/worker/gateways/baileys.ts` — implementação portada do JARVIS 5.0:
   - `useMultiFileAuthState` para persistência
   - Auto-admin assignment (primeira mensagem define admin)
   - Auto-reconnect exponential backoff (1s → 2s → 4s... max 30s, 5 tentativas)
@@ -164,24 +164,24 @@
   - `sendAlert()` para notificações proativas
 
 **Intent Router (#1):**
-- [ ] 🔥 `src/worker/intent-router.ts` — regex 11 categorias PT-BR (do JARVIS 4.5)
+- [x] 🔥 `src/worker/intent-router.ts` — regex 11 categorias PT-BR (do JARVIS 4.5)
   - CREATE/FIX/DEPLOY/EXPLAIN/DEBUG/STATUS/ARCHITECT/REVIEW/SUPPORT/CLOSE/UNKNOWN
   - Fast path: regex < 1ms (90% dos casos)
   - Slow path: LLM fallback para os 10% ambíguos
   - `detectProject()` + `extractEntities()` (files/commands/paths/errors)
 
 **Chat State Machine (#2):**
-- [ ] 🔥 `src/worker/chat-session.ts` — state machine portada do 4.5
+- [x] 🔥 `src/worker/chat-session.ts` — state machine portada do 4.5
   - 6 estados: CRIADO/ANALISANDO/ATIVO/AGUARDANDO/COMPLETO/FECHADO
   - Auto-close 24h de inatividade
   - Auto-save a cada 30s
   - Reabertura de sessão fechada
 
 **Orquestração:**
-- [ ] `src/worker/messages.ts` — templates de mensagens centralizadas (TASK_START, WELCOME, HELP, etc.)
-- [ ] `src/worker/dispatcher.ts` — orquestra: msg → IntentRouter → ChatSession → Worker → resposta
-- [ ] `src/worker/server.ts` — adicionar `GET /api/whatsapp/qr` + `/api/whatsapp/status`
-- [ ] Documentação (`docs/worker/FASE3-WHATSAPP.md` — atualizar para Baileys)
+- [x] `src/worker/messages.ts` — templates de mensagens centralizadas (TASK_START, WELCOME, HELP, etc.)
+- [x] `src/worker/dispatcher.ts` — orquestra: msg → IntentRouter → ChatSession → Worker → resposta
+- [x] `src/worker/server.ts` — adicionar `GET /api/whatsapp/qr` + `/api/whatsapp/status`
+- [x] Documentação (`docs/worker/FASE3-WHATSAPP.md` — atualizar para Baileys)
 
 ### Critério de aceite
 
@@ -195,7 +195,7 @@
 
 ## FASE 4 — Session Store SQLite + KnowledgeGraph + SpacedRep
 
-**Status**: ⏳ Pendente — CORE  
+**Status**: ✅ Concluído (2026-05-16)  
 **Meta**: persistência real de conversas, knowledge graph e learnings.
 
 > **Melhorias CORE incluídas**: #8 Debounced saves. **Melhorias bônus**: #11 Spaced Repetition + Decay, #12 Knowledge Graph BFS.
@@ -203,10 +203,10 @@
 ### Tarefas
 
 **Setup:**
-- [ ] `bun add better-sqlite3 @types/better-sqlite3`
+- [x] `bun add better-sqlite3 @types/better-sqlite3`
 
 **Schema:**
-- [ ] `src/worker/db/schema.ts` — schema SQLite com 7 tabelas:
+- [x] `src/worker/db/schema.ts` — schema SQLite com 7 tabelas:
   - sessions (chatId, state, currentProject, intent, idleSince, autoCloseAt)
   - messages (sessionId, role, content, tokens, cost, metadata)
   - budget_daily (user_phone, date, cost, tokens)
@@ -216,23 +216,23 @@
   - learning_index (cross-reference + spaced repetition)
 
 **CRUD + State Machine:**
-- [ ] `src/worker/db/sessions.ts` — CRUD integrado com ChatSession state machine (Fase 3)
+- [x] `src/worker/db/sessions.ts` — CRUD integrado com ChatSession state machine (Fase 3)
 
 **Knowledge Graph BFS (#12):**
-- [ ] `src/worker/db/memory.ts` — `findConnected(nodeId, maxDepth=2)` com weight tracking
-- [ ] `src/worker/memory-extractor.ts` — extração automática pós-resposta (Haiku)
+- [x] `src/worker/db/memory.ts` — `findConnected(nodeId, maxDepth=2)` com weight tracking
+- [x] `src/worker/memory-extractor.ts` — extração automática pós-resposta (Haiku)
 
 **Spaced Repetition + Decay (#11):**
-- [ ] `src/worker/db/learnings.ts` — Pipeline propose/validate/register
+- [x] `src/worker/db/learnings.ts` — Pipeline propose/validate/register
   - REVIEW_INTERVALS_DAYS = [1, 3, 7, 14, 30, 60]
   - DECAY_RATE = 0.02 (2% por dia inativo)
   - Garbage collection: relevance < 0.05 + 90 dias inativo + LOW conf → delete
 
 **Debounced Saves (#8) — padrão universal:**
-- [ ] 🔥 `src/worker/auto-save.ts` — batch writes 1s delay para todos os módulos persistentes
+- [x] 🔥 `src/worker/auto-save.ts` — batch writes 1s delay para todos os módulos persistentes
 
 **Docs:**
-- [ ] Documentação (`docs/worker/FASE4-SQLITE.md`)
+- [x] Documentação (`docs/worker/FASE4-SQLITE.md`)
 
 ### Critério de aceite
 
@@ -421,9 +421,10 @@
 
 ## RESUMO DE PROGRESSO (2026-05-16)
 
-**Fases concluídas**: 2 de 7 (28%)  
-**Linhas de código**: ~900 LOC (worker-core.ts + server.ts + config.ts + main.ts)  
-**Tempo estimado para produção**: ~9 dias (Fases 1-7)
+**Fases concluídas**: 4 de 7 (57%)  
+**Linhas de código**: ~2700 LOC (Fases 1-4 + integrações)  
+**Próxima fase**: Fase 5 (Budget + Approval + Checkpoints + PlanMode)  
+**Tempo estimado para produção**: ~4 dias (Fases 5-7)
 
 **Status por componente:**
 

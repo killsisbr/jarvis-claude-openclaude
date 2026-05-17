@@ -16,9 +16,24 @@ import { routeModel, type SmartRoutingConfig, type RoutingDecision, type Routing
 import { resolveTarget, markRequestOutcome, type ResolverContext, type ProviderOverride } from './providerResolver.ts'
 import { KeyPool } from './keyPool.ts'
 import type { AgentModelsMap } from './providerResolver.ts'
+import { RotateChain, type ProviderEntryConfig } from '../rotate/RotateChain.ts'
 
 /** Shared pool cache — survives across turns within a session. */
 const globalPoolCache = new Map<string, KeyPool>()
+
+/**
+ * Return a ProviderOverride from the active provider in a RotateChain.
+ * RotateChain providers are resolved directly (no pool / resolver).
+ */
+function rotateProviderToOverride(chain: RotateChain): ProviderOverride | null {
+  const provider = chain.getActiveProvider()
+  if (!provider) return null
+  return {
+    baseURL: provider.baseURL,
+    apiKey: provider.apiKey,
+    model: provider.model,
+  }
+}
 
 export type SmartRouteResult = {
   /** The resolved provider override to pass to the API client. Null = use default. */
@@ -27,6 +42,8 @@ export type SmartRouteResult = {
   decision: RoutingDecision
   /** The full target string (e.g. "zen-pool:claude-sonnet-4") — needed for markRequestOutcome. */
   target: string
+  /** RotateChain instance (present only when rotate mode is active). */
+  rotateChain?: RotateChain | null
 }
 
 /**
@@ -42,6 +59,8 @@ export type SmartRouteResult = {
  * @param smartRoutingConfig - Smart routing config from settings
  * @param agentModels - Provider definitions from settings
  * @param fallbackProvider - Fallback provider alias (optional)
+ * @param rotateChain - RotateChain instance (optional). When set, non-"code" categories
+ *   use the chain's active provider instead of routing through the resolver.
  */
 export function trySmartRoute(opts: {
   userText: string
@@ -51,6 +70,7 @@ export function trySmartRoute(opts: {
   smartRoutingConfig?: SmartRoutingConfig | null
   agentModels?: AgentModelsMap | null
   fallbackProvider?: string
+  rotateChain?: RotateChain | null
 }): SmartRouteResult | null {
   // Agent-level override takes precedence — don't interfere.
   if (opts.existingOverride) return null
@@ -73,6 +93,23 @@ export function trySmartRoute(opts: {
   // Empty model means "no target for this category" — fall through to default.
   if (!decision.model) return null
 
+  // ── RotateChain mode ──
+  // If a RotateChain is configured and the category is NOT "vision" or "code",
+  // use the chain's active provider directly instead of routing through targets.
+  const chain = opts.rotateChain
+  if (chain && decision.category !== 'code' && decision.category !== 'vision') {
+    const override = rotateProviderToOverride(chain)
+    if (!override) return null
+    return {
+      override,
+      decision,
+      target: `rotate:${chain.getProviderIds().join(',')}`,
+      rotateChain: chain,
+    }
+  }
+
+  // ── Standard / Hard-route mode ──
+  // For "code" and "vision" categories (or when no chain), resolve via targets.
   // The decision.model is a target string like "zen-pool:claude-sonnet-4" or
   // a bare model name like "claude-haiku-4-5". Resolve it via providerResolver.
   const ctx: ResolverContext = {

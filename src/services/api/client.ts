@@ -5,6 +5,7 @@ import {
   getAnthropicApiKey,
   getApiKeyFromApiKeyHelper,
   getClaudeAIOAuthTokens,
+  hasAnthropicApiKeyAuth,
   isClaudeAISubscriber,
   refreshAndGetAwsCredentials,
   refreshGcpCredentialsIfNeeded,
@@ -28,6 +29,7 @@ import {
   getSessionId,
 } from '../../bootstrap/state.js'
 import { getOauthConfig } from '../../constants/oauth.js'
+import { isOAuthTokenExpired } from '../oauth/client.js'
 import { isDebugToStdErr, logForDebugging } from '../../utils/debug.js'
 import {
   getAWSRegion,
@@ -259,6 +261,24 @@ export async function getAnthropicClient({
 
   if (shouldUseFirstPartyAuth && !isClaudeAiSubscriber) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
+  }
+
+  // Se é first-party Anthropic e ainda não temos credencial, erro claro
+  if (shouldUseFirstPartyAuth) {
+    const tokens = getClaudeAIOAuthTokens()
+    const hasValidToken =
+      tokens?.accessToken &&
+      tokens?.expiresAt != null &&
+      !isOAuthTokenExpired(tokens.expiresAt)
+    const hasCredential = hasAnthropicApiKeyAuth() || hasValidToken
+    if (!hasCredential) {
+      const loginCmd = getIsNonInteractiveSession()
+        ? 'Set ANTHROPIC_API_KEY in .env'
+        : 'Run /login or set ANTHROPIC_API_KEY in .env'
+      throw new Error(
+        `Anthropic: no API key or OAuth session found.\n${loginCmd} to authenticate.`,
+      )
+    }
   }
 
   const resolvedFetch = buildFetch(fetchOverride, source)

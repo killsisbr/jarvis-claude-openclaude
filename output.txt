@@ -1,0 +1,9 @@
+Microsoft Windows [Version 10.0.19045.5968]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\jarvis-claude\openclaude>
+D:\jarvis-claude\openclaude>1
+'1' is not recognized as an internal or external command,
+operable program or batch file.
+
+D:\jarvis-claude\openclaude>

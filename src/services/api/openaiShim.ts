@@ -1562,9 +1562,29 @@ class OpenAIShimMessages {
       treatAsLocal: isLocalProviderUrl(request.baseUrl),
     })
     const shimConfig = runtimeShimContext.openaiShimConfig
+
+    // Auto-detect: if any assistant message in history has a thinking block,
+    // the upstream provider returned reasoning_content (DeepSeek, Kimi, etc.)
+    // and requires it echoed back — regardless of whether the model name was
+    // recognized. This handles aggregators like opencode.ai/zen that route to
+    // reasoning models transparently.
+    const hasThinkingInHistory = compressedMessages.some(msg => {
+      const inner = (msg as { message?: { content?: unknown }; content?: unknown }).message ?? msg
+      const content = (inner as { content?: unknown }).content
+      return Array.isArray(content) && content.some(
+        (b: { type?: string }) => b.type === 'thinking',
+      )
+    })
+    const preserveReasoningContent =
+      shimConfig.preserveReasoningContent === true || hasThinkingInHistory
+    const reasoningContentFallback =
+      preserveReasoningContent && shimConfig.reasoningContentFallback === undefined
+        ? ('' as const)
+        : shimConfig.reasoningContentFallback
+
     const openaiMessages = convertMessages(compressedMessages, params.system, {
-      preserveReasoningContent: shimConfig.preserveReasoningContent,
-      reasoningContentFallback: shimConfig.reasoningContentFallback,
+      preserveReasoningContent,
+      reasoningContentFallback,
     })
 
     const body: Record<string, unknown> = {

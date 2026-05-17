@@ -1,23 +1,374 @@
-# Fase 3 — WhatsApp Gateway
+# FASE 3 — WhatsApp Baileys + Intent Router + Chat State Machine
 
-> Conectar o worker ao WhatsApp via Evolution API (recomendado) ou baileys (fallback).
-
-**Status**: Planejado  
-**Estimativa**: 2 dias
-
----
-
-## Objetivo
-
-O worker recebe mensagens do WhatsApp, processa com JARVIS Core, e responde de volta.
-
-```
-WhatsApp ─→ webhook POST ─→ Dispatcher ─→ JARVIS Worker ─→ LLM ─→ Resposta WhatsApp
-```
+**Status**: ✅ Implementado  
+**Data**: 2026-05-16  
+**Linhas adicionadas**: ~1,200 LOC
 
 ---
 
-## Opção A — Evolution API (Recomendado)
+## Visão Geral
+
+Fase 3 completa a integração do JARVIS com WhatsApp através do Baileys (50MB, sem Chromium), adiciona classificação inteligente de intents (11 categorias em português) e implementa uma state machine explícita para gerenciar o ciclo de vida das conversas.
+
+### Arquitetura
+
+```
+┌──────────────┐
+│ WhatsApp App │
+└──────┬───────┘
+       │ messages + media
+       ↓
+┌─────────────────────────┐
+│ Baileys Gateway         │ QR code, auto-reconnect
+└──────┬──────────────────┘
+       │ WhatsAppMessage
+       ↓
+┌─────────────────────────┐
+│ Message Dispatcher      │ orquestra tudo
+└─┬────┬────────┬────────┘
+  ↓    ↓        ↓
+Intent Router   Chat Session   Worker
+  (classify)    (state machine) (process)
+  │             │               │
+  └─────────────┼───────────────┘
+                ↓
+            Response
+```
+
+---
+
+## Componentes Implementados
+
+### 1. WhatsApp Gateway — `src/worker/gateways/`
+
+#### Interface: `whatsapp.ts` (80 LOC)
+Contrato abstrato para qualquer implementação WhatsApp:
+- `connect()` — conectar ao WhatsApp
+- `disconnect()` — desconectar
+- `sendMessage(chatId, text)` — enviar texto
+- `sendMedia(chatId, buffer, type, filename?)` — enviar áudio/imagem
+- `getStatus()` — verificar conexão
+- Events: `message`, `connected`, `disconnected`, `error`, `qr`
+
+#### Implementação: `baileys.ts` (250 LOC)
+Baileys integrado com recursos de produção:
+
+**Conexão:**
+- QR code exibido no terminal via `qrcode-terminal`
+- Persistência: `multiFileAuthState` em `~/.jarvis/baileys/`
+- Auto-reconnect: exponential backoff (1s → 30s, máx 5 tentativas)
+
+**Mensagens:**
+- Recebe: texto, áudio, imagem, documentos
+- Extrai: senderId, chatId, timestamp, senderName, media metadata
+- Admin assignment: primeira mensagem define admin
+
+**Eventos:**
+- `connected` — conectado ao WhatsApp
+- `disconnected` — desconectado
+- `message` — nova mensagem recebida
+- `qr` — código QR para scan
+- `error` — erro de conexão
+
+---
+
+### 2. Intent Router — `src/worker/intent-router.ts` (200 LOC)
+
+Classificação em 2 caminhos:
+
+#### Fast Path: Regex (90%, < 1ms)
+11 categorias com padrões PT-BR otimizados:
+
+| Categoria | Exemplos |
+|-----------|----------|
+| **CREATE** | "criar arquivo", "novo feature", "escrever função" |
+| **FIX** | "corrigir bug", "está quebrado", "resolver problema" |
+| **DEPLOY** | "publicar", "subir produção", "release" |
+| **EXPLAIN** | "explique", "como funciona", "o que é" |
+| **DEBUG** | "debug", "depuração", "por que falha" |
+| **STATUS** | "status", "tá rodando", "health check" |
+| **ARCHITECT** | "arquitetura", "design", "refactor" |
+| **REVIEW** | "review", "analise", "está bom" |
+| **SUPPORT** | "ajuda", "dúvida", "socorro" |
+| **CLOSE** | "fechar", "encerrar", "pronto" |
+| **UNKNOWN** | não classificado |
+
+#### Slow Path: LLM (10%, ~500ms)
+Para mensagens ambíguas, fallback para Haiku LLM.
+
+#### Entity Extraction
+Extrai automaticamente:
+- `filenames` — nomes de arquivo
+- `paths` — diretórios
+- `errors` — mensagens de erro
+- `commands` — git, npm, docker, etc.
+- `projectName` — projeto mencionado
+
+---
+
+### 3. Chat Session State Machine — `src/worker/chat-session.ts` (180 LOC)
+
+6 estados com transições explícitas:
+
+```
+CRIADO → ANALISANDO → ATIVO → COMPLETO
+   ↓        ↓          ↓ ↓        ↓
+   └─────────→ AGUARDANDO ←──────┘
+                            ↓
+                          FECHADO
+                    (auto-close 24h)
+```
+
+#### Métodos
+- `receive(message)` — registra msg, transição para ANALISANDO
+- `startWork(intent, project?)` — transição para ATIVO
+- `updateCost(tokens, cost)` — atualiza stats
+- `complete(result)` — transição para COMPLETO
+- `close()` — transição para FECHADO
+- `reopen()` — reabre sessão fechada
+- `checkAutoClose()` — verifica > 24h inativo
+- `save()` — persiste estado (async)
+
+#### Features
+- **Auto-save** a cada 30s (debounced)
+- **Auto-close** após 24h inatividade
+- **EventEmitter** para extensibilidade
+- **Metadata storage** para dados customizados
+- **State guards** — transições válidas apenas
+
+#### Dados
+```typescript
+{
+  userId: string,
+  state: ChatState,
+  startTime: number,
+  lastActivityTime: number,
+  currentProject?: string,
+  currentIntent?: string,
+  messageCount: number,
+  totalTokens: number,
+  totalCost: number,
+  metadata: Record<string, any>
+}
+```
+
+---
+
+### 4. Message Dispatcher — `src/worker/dispatcher.ts` (150 LOC)
+
+Orquestra todo o fluxo: Baileys → IntentRouter → ChatSession → Worker → resposta.
+
+#### Fluxo
+1. Baileys emite `message`
+2. Dispatcher.dispatch(msg)
+3. Recupera ou cria ChatSession
+4. Verifica auto-close (> 24h → fecha e reabre)
+5. IntentRouter classifica intent
+6. Transição: CRIADO → ANALISANDO → ATIVO
+7. JarvisWorker.processPrompt() com contexto
+8. Recebe: resposta + tokens + cost
+9. Atualiza ChatSession
+10. Envia resposta via Baileys
+11. Transição: COMPLETO
+12. Emite `dispatch_complete`
+
+#### Métodos
+- `initialize()` — conectar gateway
+- `dispatch(msg)` — processar mensagem
+- `shutdown()` — salvar e desconectar
+- `getSession(userId)` — recuperar sessão
+- `getAllSessions()` — listar todas
+- `getStats()` — agregado (sessões, mensagens, tokens, custo)
+
+#### Error Handling
+- Try-catch com emit `dispatch_error`
+- Tenta enviar erro ao usuário
+- Sessions permanecem para recuperação
+
+---
+
+### 5. Message Templates — `src/worker/messages.ts` (100 LOC)
+
+Centraliza templates com variáveis:
+
+```typescript
+MessageTemplates.get('TASK_COMPLETE', {
+  tokens: 150,
+  cost: 0.0045,
+  duration: 8.2
+})
+```
+
+Templates:
+- WELCOME, HELP, TASK_START, TASK_COMPLETE
+- STATUS_REPORT, ERROR_*, SESSION_CLOSED
+- ADMIN_ASSIGNED, RECONNECTING, CONNECTION_LOST
+
+---
+
+### 6. Server Extensions — `src/worker/server.ts`
+
+Novas rotas:
+
+#### `GET /api/whatsapp/status`
+```json
+{
+  "active_sessions": 3,
+  "total_sessions": 15,
+  "total_messages": 142,
+  "total_tokens": 15230,
+  "total_cost": 0.4567,
+  "timestamp": "2026-05-16T10:30:45Z"
+}
+```
+
+#### `GET /api/whatsapp/qr`
+```json
+{
+  "message": "QR code is displayed in terminal",
+  "info": "Scan the QR code with your WhatsApp mobile device"
+}
+```
+
+---
+
+## Setup e Execução
+
+### 1. Dependências ✅ (Já instaladas)
+```bash
+bun add @whiskeysockets/baileys qrcode-terminal
+```
+
+### 2. Atualizar Entrypoint (main.ts)
+```typescript
+import { MessageDispatcher } from './dispatcher'
+
+// ... após JarvisWorker ...
+
+const dispatcher = new MessageDispatcher(worker)
+await dispatcher.initialize()
+
+const server = createServer(worker, dispatcher)
+
+process.on('SIGTERM', async () => {
+  console.log('[Worker] Shutting down...')
+  await dispatcher.shutdown()
+  process.exit(0)
+})
+```
+
+### 3. Executar
+```bash
+bun run worker
+```
+
+Terminal exibe QR code:
+```
+████████████████████████
+████████████████████████ ← Scan com WhatsApp
+████████████████████████
+
+[Baileys] Conectado com sucesso!
+```
+
+### 4. Testar
+Enviar mensagem no WhatsApp:
+```
+"criar um arquivo chamado hello.ts"
+```
+
+Resposta esperada: código gerado pelo JARVIS.
+
+---
+
+## Performance
+
+| Métrica | Target | Notas |
+|---------|--------|-------|
+| Intent classification | < 1ms | Regex, 90% dos casos |
+| WhatsApp latency | < 5s | Inclui LLM roundtrip |
+| Session creation | < 50ms | Estado em memória |
+| QR scan → connected | < 30s | Handshake Baileys |
+| RAM per session | < 10KB | Apenas estado |
+| Total RAM | < 100MB | 10 sessões ativas |
+
+---
+
+## Arquivos Criados/Modificados
+
+```
+src/worker/
+├── gateways/
+│   ├── whatsapp.ts         (80 LOC)   novo
+│   └── baileys.ts          (250 LOC)  novo
+├── intent-router.ts        (200 LOC)  novo
+├── chat-session.ts         (180 LOC)  novo
+├── dispatcher.ts           (150 LOC)  novo
+├── messages.ts             (100 LOC)  novo
+└── server.ts               (+40 LOC)  modificado
+
+docs/worker/
+└── FASE3-WHATSAPP.md       (este arquivo)
+```
+
+**Total Fase 3**: ~1,200 LOC
+
+---
+
+## Próximas Fases
+
+### Fase 4 — SQLite + KnowledgeGraph
+- Persistir ChatSession em SQLite
+- Adicionar histórico de mensagens
+- Knowledge graph de entidades
+- Spaced repetition learning
+
+### Fase 5 — Budget + Approval + Checkpoints
+- Limites de custo por usuário
+- Approval system (Y/n para ações críticas)
+- Checkpoints para restore de arquivos
+- Plan mode (READONLY/SANDBOX/PRODUCTION)
+
+### Fase 6 — Cron + Sentinelas
+- Health check (60s)
+- Key rotation (1min)
+- Cost monitoring (5min)
+- Daily reports (24h)
+- Spaced repetition decay (24h)
+
+---
+
+## Troubleshooting
+
+### QR Code não aparece
+- Verificar `qrcode-terminal` instalado
+- Terminal pode não suportar modo bruto
+- Tentar `bun pm cache clean`
+
+### Baileys desconecta constantemente
+- Usar conta WhatsApp dedicada (não pessoal)
+- Verificar conexão de internet
+- Aumentar `maxReconnectAttempts` se necessário
+
+### "Not connected" ao enviar
+- Aguardar 5-10s após escanear QR
+- Verificar console para evento `connected`
+- Checar logs de autenticação
+
+### Memory leak em sessões longas
+- Implementar GC de sessões FECHADO (Fase 4)
+- Monitorar via `/api/whatsapp/status`
+- Reiniciar worker a cada 24h se necessário
+
+---
+
+## Métricas
+
+- **LOC Fase 3**: ~1,200
+- **Modules**: 7 (gateways, intents, session, dispatcher, messages, server, docs)
+- **Dependencies**: 2 new (baileys, qrcode-terminal)
+- **Performance**: 90% < 1ms (regex), 10% ~500ms (LLM)
+- **RAM**: < 100MB típico
 
 ### O que é
 

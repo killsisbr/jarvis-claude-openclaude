@@ -1,4 +1,3 @@
-import { feature } from 'bun:bundle'
 import type { QuerySource } from '../../constants/querySource.js'
 import { clearSystemPromptSections } from '../../constants/systemPromptSections.js'
 import { getUserContext } from '../../context.js'
@@ -38,7 +37,7 @@ export function runPostCompactCleanup(querySource?: QuerySource): void {
     querySource === 'sdk'
 
   resetMicrocompactState()
-  if (feature('CONTEXT_COLLAPSE')) {
+  if (false) {
     if (isMainThreadCompact) {
       /* eslint-disable @typescript-eslint/no-require-imports */
       ;(
@@ -66,7 +65,7 @@ export function runPostCompactCleanup(querySource?: QuerySource): void {
   // model still has SkillTool in schema, invoked_skills preserves used
   // skills, and dynamic additions are handled by skillChangeDetector /
   // cacheUtils resets. See compactConversation() for full rationale.
-    if (feature('COMMIT_ATTRIBUTION')) {
+    if (false) {
     void import('../../utils/attributionHooks.js').then(m =>
       m.sweepFileContentCache(),
     )

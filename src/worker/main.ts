@@ -20,6 +20,8 @@
 import { JarvisWorker } from './worker-core.ts'
 import { createServer } from './server.ts'
 import { loadConfig, logConfig } from './config.ts'
+import { MessageDispatcher } from './dispatcher.ts'
+import { closeDatabase } from './db/schema.ts'
 
 async function main() {
   console.log('')
@@ -41,9 +43,34 @@ async function main() {
     const worker = new JarvisWorker(config)
     console.log('[startup] ✓ JarvisWorker pronto')
 
+    // Criar e inicializar Message Dispatcher (WhatsApp)
+    console.log('[startup] Inicializando Message Dispatcher (WhatsApp)...')
+    const dispatcher = new MessageDispatcher(worker)
+    await dispatcher.initialize()
+    console.log('[startup] ✓ Message Dispatcher pronto')
+
+    // Setup dispatcher listeners para logs
+    dispatcher.on('session_created', (data) => {
+      console.log(`[whatsapp] Nova sessão: ${data.userName} (${data.userId})`)
+    })
+    dispatcher.on('dispatch_complete', (event) => {
+      console.log(
+        `[whatsapp] ${event.userId}: intent=${event.intent}, tokens=${event.tokens}, cost=$${event.cost.toFixed(4)}, latency=${event.duration}ms`
+      )
+    })
+    dispatcher.on('dispatch_error', (error) => {
+      console.error(`[whatsapp] Erro ao processar ${error.userId}: ${error.error}`)
+    })
+    dispatcher.on('connected', () => {
+      console.log('[whatsapp] ✓ Conectado ao WhatsApp')
+    })
+    dispatcher.on('disconnected', () => {
+      console.error('[whatsapp] ✗ Desconectado do WhatsApp')
+    })
+
     // Criar Express app
     console.log('[startup] Iniciando Express server...')
-    const app = createServer(worker)
+    const app = createServer(worker, dispatcher)
     const port = parseInt(process.env['WORKER_PORT'] ?? '3000', 10)
 
     // Listen
@@ -51,18 +78,37 @@ async function main() {
       console.log(`[startup] ✓ Servidor rodando em http://localhost:${port}`)
       console.log('')
       console.log('Rotas disponíveis:')
-      console.log(`  GET  http://localhost:${port}/health         → status do worker`)
-      console.log(`  POST http://localhost:${port}/api/chat       → enviar mensagem`)
-      console.log(`  GET  http://localhost:${port}/api/cost       → custo + estatísticas`)
-      console.log(`  GET  http://localhost:${port}/api/keys       → status dos pools`)
+      console.log(`  GET  http://localhost:${port}/health              → status do worker`)
+      console.log(`  POST http://localhost:${port}/api/chat            → enviar mensagem`)
+      console.log(`  GET  http://localhost:${port}/api/cost            → custo + estatísticas`)
+      console.log(`  GET  http://localhost:${port}/api/keys            → status dos pools`)
+      console.log(`  GET  http://localhost:${port}/api/whatsapp/status → WhatsApp status`)
+      console.log(`  GET  http://localhost:${port}/api/whatsapp/qr     → QR code info`)
       console.log('')
       console.log('[startup] Pressione Ctrl+C para encerrar')
       console.log('')
     })
 
     // Graceful shutdown
-    const shutdown = (signal: string) => {
+    const shutdown = async (signal: string) => {
       console.log(`\n[shutdown] Recebido ${signal}. Encerrando gracefully...`)
+
+      try {
+        console.log('[shutdown] Encerrando Message Dispatcher...')
+        await dispatcher.shutdown()
+        console.log('[shutdown] ✓ Message Dispatcher encerrado')
+      } catch (err) {
+        console.error('[shutdown] Erro ao encerrar dispatcher:', err)
+      }
+
+      try {
+        console.log('[shutdown] Fechando banco de dados...')
+        closeDatabase()
+        console.log('[shutdown] ✓ Banco de dados fechado')
+      } catch (err) {
+        console.error('[shutdown] Erro ao fechar banco de dados:', err)
+      }
+
       server.close(() => {
         console.log('[shutdown] ✓ Servidor encerrado')
         process.exit(0)

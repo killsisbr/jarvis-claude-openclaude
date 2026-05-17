@@ -1,0 +1,11 @@
+
+<user_allow_rules_to_replace>
+- Allow all
+</user_allow_rules_to_replace>
+<user_deny_rules_to_replace>
+- Deny none
+</user_deny_rules_to_replace>
+<user_environment_to_replace>
+- Local dev
+</user_environment_to_replace>
+<permissions_template></permissions_template>

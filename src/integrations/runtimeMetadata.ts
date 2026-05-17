@@ -142,7 +142,7 @@ function inferRemoteModelOpenAIShimConfig(
     return undefined
   }
 
-  if (normalizedModel.includes('deepseek')) {
+  if (normalizedModel.includes('deepseek') || normalizedModel.includes('big-pickle')) {
     return {
       preserveReasoningContent: true,
       requireReasoningContentOnAssistantMessages: true,

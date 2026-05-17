@@ -10,8 +10,12 @@
 
 import express, { type Request, type Response, type NextFunction } from 'express'
 import type { JarvisWorker } from './worker-core.ts'
+import type { MessageDispatcher } from './dispatcher.ts'
 
-export function createServer(worker: JarvisWorker): express.Application {
+export function createServer(
+  worker: JarvisWorker,
+  dispatcher?: MessageDispatcher
+): express.Application {
   const app = express()
   app.use(express.json())
 
@@ -87,7 +91,40 @@ export function createServer(worker: JarvisWorker): express.Application {
     })
   })
 
-  // ── Error handler ───────────────────────────────────────────────────────────
+  // ── WhatsApp ─────────────────────────────────────────────────────────────────
+
+  app.get('/api/whatsapp/status', (_req: Request, res: Response) => {
+    if (!dispatcher) {
+      res.status(503).json({ error: 'WhatsApp dispatcher not initialized' })
+      return
+    }
+
+    const stats = dispatcher.getStats()
+    res.json({
+      active_sessions: stats.activeSessions,
+      total_sessions: stats.totalSessions,
+      total_messages: stats.totalMessages,
+      total_tokens: stats.totalTokens,
+      total_cost: round(stats.totalCost),
+      timestamp: new Date().toISOString(),
+    })
+  })
+
+  app.get('/api/whatsapp/qr', (_req: Request, res: Response) => {
+    if (!dispatcher) {
+      res.status(503).json({ error: 'WhatsApp dispatcher not initialized' })
+      return
+    }
+
+    // QR code is sent via event listener
+    // This endpoint would be used for webhook-based QR fetching
+    res.json({
+      message: 'QR code is displayed in terminal',
+      info: 'Scan the QR code with your WhatsApp mobile device to connect',
+    })
+  })
+
+  // Error handler ───────────────────────────────────────────────────────────────
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error('[worker] Erro não tratado:', err.message)

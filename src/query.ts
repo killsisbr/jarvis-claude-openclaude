@@ -296,6 +296,24 @@ async function* queryLoop(
   }
   const budgetTracker = true ? createBudgetTracker() : null
 
+  // ── RotateChain (multi-provider failover) ──
+  // If ROTATE_CHAIN env var is set, instantiate the chain once per query loop.
+  // The chain's active provider is injected into smart routing so every turn
+  // uses the current provider until it fails and the chain advances.
+  const rotateChain = (() => {
+    try {
+      const { createRotateChainFromEnv } = require('./services/rotate/factory.js') as typeof import('./services/rotate/factory.js')
+      return createRotateChainFromEnv((event: any) => {
+        if (event.kind === 'skip' || event.kind === 'all-exhausted') {
+          const detail = event.provider ?? event.lastError ?? ''
+          process.stderr.write(`[rotate] ${event.kind}: ${detail}\n`)
+        }
+      })
+    } catch {
+      return null
+    }
+  })()
+
   // task_budget.remaining tracking across compaction boundaries. Undefined
   // until first compact fires — while context is uncompacted the server can
   // see the full history and handles the countdown from {total} itself (see
@@ -729,7 +747,12 @@ async function* queryLoop(
     let attemptWithFallback = true
 
     queryCheckpoint('query_api_loop_start')
+
+    // Declared here so it's accessible in both the try block and the catch below.
+    let smartRouteResult: SmartRouteResult | null = null
+
     try {
+
       while (attemptWithFallback) {
         attemptWithFallback = false
         try {
@@ -739,7 +762,7 @@ async function* queryLoop(
           // ── Smart routing: classify turn and resolve provider ──
           // Runs only when settings.smartRouting is configured AND no
           // agent-level providerOverride is already active.
-          let smartRouteResult: SmartRouteResult | null = null
+          let lastRoute: SmartRouteResult | null = null
           {
             const lastMsg = messagesForQuery[messagesForQuery.length - 1]
             const userText =
@@ -750,15 +773,18 @@ async function* queryLoop(
               lastMsg?.type === 'user' &&
               Array.isArray(lastMsg.message?.content) &&
               lastMsg.message.content.some((b: any) => b.type === 'image')
-            smartRouteResult = trySmartRoute({
+            lastRoute = trySmartRoute({
               userText,
               turnNumber: turnCount,
               hasImages,
               existingOverride: toolUseContext.options.providerOverride ?? null,
               smartRoutingConfig: appState.settings?.smartRouting as SmartRoutingConfig | undefined,
               agentModels: appState.settings?.agentModels as AgentModelsMap | undefined,
+              rotateChain, // may be null — bridge handles null
             })
           }
+
+          smartRouteResult = lastRoute
 
           for await (const message of deps.callModel({
             messages: prependUserContext(messagesForQuery, userContext),
@@ -800,7 +826,7 @@ async function* queryLoop(
               skipCacheWrite,
               agentId: toolUseContext.agentId,
               addNotification: toolUseContext.addNotification,
-              providerOverride: smartRouteResult?.override ?? toolUseContext.options.providerOverride,
+              providerOverride: lastRoute?.override ?? toolUseContext.options.providerOverride,
               ...(params.taskBudget && {
                 taskBudget: {
                   total: params.taskBudget.total,
@@ -1055,6 +1081,15 @@ async function* queryLoop(
         }
       }
     } catch (error) {
+      // ── RotateChain: report failure so the chain advances ──
+      const lastResult = smartRouteResult
+      if (lastResult?.rotateChain) {
+        // Don't report user-initiated aborts as provider failures
+        if (!toolUseContext.abortController.signal.aborted) {
+          lastResult.rotateChain.reportFailure(error)
+        }
+      }
+
       logError(error)
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -1531,6 +1566,11 @@ async function* queryLoop(
             continue
           }
         }
+      }
+
+      // ── RotateChain: report success ──
+      if (smartRouteResult?.rotateChain) {
+        smartRouteResult.rotateChain.reportSuccess()
       }
 
       return { reason: 'completed' }
