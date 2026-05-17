@@ -249,6 +249,38 @@ export function createServer(
     }
   })
 
+  // ── Cron Scheduler (Fase 6) ─────────────────────────────────────────────────────
+
+  app.get('/api/cron', (_req: Request, res: Response) => {
+    if (!dispatcher?.cronScheduler) {
+      res.status(503).json({ error: 'Cron scheduler not initialized' })
+      return
+    }
+
+    const jobs = dispatcher.cronScheduler.list()
+    const stats = dispatcher.cronScheduler.getStats()
+
+    res.json({
+      jobs: jobs.map((job) => ({
+        name: job.name,
+        interval: job.intervalMs,
+        lastRun: job.lastRun,
+        nextRun: job.nextRun,
+        status: job.active ? 'active' : 'inactive',
+        errorCount: job.errorCount,
+        lastError: job.lastError,
+      })),
+      stats: {
+        totalJobs: stats.totalJobs,
+        activeJobs: stats.activeJobs,
+        totalErrors: stats.totalErrors,
+        uptime: stats.uptime,
+        lastErrors: stats.lastErrors,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  })
+
   // ── Checkpoints (Fase 5) ─────────────────────────────────────────────────────
 
   app.get('/api/checkpoints', (_req: Request, res: Response) => {

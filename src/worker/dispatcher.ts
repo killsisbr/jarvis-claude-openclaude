@@ -10,6 +10,9 @@ import { ApprovalSystem } from "./approval";
 import { BudgetController } from "./budget";
 import { CheckpointManager } from "./checkpoints";
 import { PlanModeManager } from "./plan-mode";
+import { CronScheduler } from "./cron-scheduler";
+import { Sentinels } from "./sentinels";
+import { EventBus } from "./event-bus";
 import { getDatabase } from "./db/schema";
 
 export interface DispatchEvent {
@@ -38,6 +41,11 @@ export class MessageDispatcher extends EventEmitter {
   checkpointManager: CheckpointManager;
   planModeManager: PlanModeManager;
 
+  // Fase 6 systems
+  cronScheduler: CronScheduler;
+  sentinels: Sentinels;
+  eventBus: EventBus;
+
   constructor(worker: JarvisWorker) {
     super();
     this.worker = worker;
@@ -57,6 +65,11 @@ export class MessageDispatcher extends EventEmitter {
     this.budgetController = new BudgetController(db);
     this.checkpointManager = new CheckpointManager();
     this.planModeManager = new PlanModeManager();
+
+    // Initialize Fase 6 systems
+    this.eventBus = new EventBus();
+    this.cronScheduler = new CronScheduler(this.eventBus);
+    this.sentinels = new Sentinels(this.cronScheduler, this.eventBus);
 
     this.setupGatewayListeners();
   }
@@ -207,6 +220,9 @@ Session duration: ${((Date.now() - sessionData.startTime) / 1000).toFixed(0)}s
 
     // Flush auto-save queue (Fase 4)
     await this.autoSave.shutdown();
+
+    // Shutdown cron scheduler (Fase 6)
+    this.cronScheduler.shutdownAll();
 
     // Disconnect gateway
     await this.gateway.disconnect();

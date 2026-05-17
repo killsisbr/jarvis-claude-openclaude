@@ -16,7 +16,7 @@
 | 3 | WhatsApp Baileys + Intent Router + Chat State Machine | ✅ Concluído |
 | 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ✅ Concluído |
 | 5 | Budget + Cache + Approval + Checkpoints + PlanMode | ✅ Concluído |
-| 6 | Sentinela + Cron embutido + Relatórios | ⏳ Pendente — CORE |
+| 6 | Sentinela + Cron embutido + Relatórios | ✅ Concluído |
 | 7 | Docker + Sandbox + Skills System | ⏳ Pendente |
 | 8 | PC CLI Bridge (opcional, do JARVIS 5.0) | ⏳ Idea |
 
@@ -421,10 +421,10 @@
 
 ## RESUMO DE PROGRESSO (2026-05-17)
 
-**Fases concluídas**: 5 de 7 (71%)  
-**Linhas de código**: ~3900 LOC (Fases 1-5 + integrações)  
-**Próxima fase**: Fase 6 (Sentinelas + Cron)  
-**Tempo estimado para produção**: ~3 dias (Fases 6-7)
+**Fases concluídas**: 6 de 7 (86%)  
+**Linhas de código**: ~4320 LOC (Fases 1-6 + integrações)  
+**Próxima fase**: Fase 7 (Docker + Deploy)  
+**Tempo estimado para produção**: ~2 dias (Fase 7)
 
 **Status por componente:**
 
@@ -437,10 +437,15 @@
 | Entrypoint | ✅ | `src/worker/main.ts` + `index.ts` |
 | Smart routing | ✅ (herança) | Reusa `src/services/api/smartRoutingBridge.ts` |
 | KeyPool | ✅ (herança) | Reusa `src/services/api/keyPool.ts` |
-| WhatsApp gateway | ⏳ | Será `src/worker/gateways/` |
-| SQLite store | ⏳ | Será `src/worker/db/` |
-| Budget controller | ⏳ | Será `src/worker/budget.ts` |
-| Sentinelas | ⏳ | Será `src/worker/sentinels.ts` |
+| WhatsApp gateway | ✅ | `src/worker/gateways/baileys.ts` + `whatsapp.ts` |
+| SQLite store | ✅ | `src/worker/db/schema.ts` + `sessions.ts` |
+| Budget controller | ✅ | `src/worker/budget.ts` (170 LOC) |
+| Approval system | ✅ | `src/worker/approval.ts` (330 LOC) |
+| Checkpoints | ✅ | `src/worker/checkpoints.ts` (320 LOC) |
+| Plan mode | ✅ | `src/worker/plan-mode.ts` (250 LOC) |
+| EventBus | ✅ | `src/worker/event-bus.ts` (75 LOC) |
+| CronScheduler | ✅ | `src/worker/cron-scheduler.ts` (130 LOC) |
+| Sentinelas | ✅ | `src/worker/sentinels.ts` (280 LOC) |
 
 **Como usar agora:**
 

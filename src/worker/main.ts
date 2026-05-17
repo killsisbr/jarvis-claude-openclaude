@@ -68,6 +68,16 @@ async function main() {
       console.error('[whatsapp] ✗ Desconectado do WhatsApp')
     })
 
+    // Setup sentinel listeners (Fase 6)
+    dispatcher.eventBus.on('sentinel_alert', (alert) => {
+      console.log(`[sentinel] ALERTA: ${alert.message}`)
+      // In future: send WhatsApp notification to admin
+    })
+
+    dispatcher.eventBus.on('job_error', (event) => {
+      console.error(`[cron] Job "${event.name}" falhou: ${event.error}`)
+    })
+
     // Criar Express app
     console.log('[startup] Iniciando Express server...')
     const app = createServer(worker, dispatcher)
@@ -75,6 +85,11 @@ async function main() {
 
     // Listen
     const server = app.listen(port, () => {
+      // Initialize Fase 6 sentinels
+      console.log('[startup] Inicializando sentinelas (Fase 6)...')
+      dispatcher.sentinels.registerAll()
+      console.log('[startup] ✓ 5 sentinelas registradas')
+
       console.log(`[startup] ✓ Servidor rodando em http://localhost:${port}`)
       console.log('')
       console.log('Rotas disponíveis:')
@@ -84,6 +99,7 @@ async function main() {
       console.log(`  GET  http://localhost:${port}/api/keys            → status dos pools`)
       console.log(`  GET  http://localhost:${port}/api/whatsapp/status → WhatsApp status`)
       console.log(`  GET  http://localhost:${port}/api/whatsapp/qr     → QR code info`)
+      console.log(`  GET  http://localhost:${port}/api/cron            → cron jobs status`)
       console.log('')
       console.log('[startup] Pressione Ctrl+C para encerrar')
       console.log('')

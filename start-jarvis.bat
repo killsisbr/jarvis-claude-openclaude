@@ -162,7 +162,7 @@ set "ROTATE_MODE=1"
 REM Ensure all provider env vars are visible to JARVIS
 echo [rotate] Starting JARVIS with RotateChain...
 echo.
-call "%ROOT%jarvis.bat" rotate %PASS_ARGS%
+call "%ROOT%jarvis.bat" rotate
 goto :done
 
 :done
