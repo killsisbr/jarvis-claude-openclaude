@@ -13,11 +13,12 @@
 |------|-----------|--------|
 | 1 | Worker Headless (core + Express básico) | ✅ Concluído |
 | 2 | Worker Standalone (main.ts + healthcheck completo) | ✅ Concluído |
-| 3 | WhatsApp Gateway (Evolution API / baileys) | ⏳ Pendente |
-| 4 | Session Store SQLite + Memória permanente | ⏳ Pendente |
-| 5 | Budget Controller + Segurança | ⏳ Pendente |
-| 6 | Sentinela + Relatórios automáticos | ⏳ Pendente |
-| 7 | Docker + Deploy na VPS | ⏳ Pendente |
+| 3 | WhatsApp Gateway via **Baileys** + Intent Router | ⏳ Pendente |
+| 4 | Session Store SQLite + KnowledgeGraph + SpacedRep | ⏳ Pendente |
+| 5 | Budget + Cache + **Approval + Checkpoints + PlanMode** | ⏳ Pendente |
+| 6 | Sentinela + Cron + Relatórios | ⏳ Pendente |
+| 7 | Docker + Sandbox + **Skills System** | ⏳ Pendente |
+| 8 | PC CLI Bridge (opcional, do JARVIS 5.0) | ⏳ Idea |
 
 ---
 
@@ -82,36 +83,40 @@
 
 ---
 
-## FASE 3 — WhatsApp Gateway (REVISADA pós JARVIS 4.5 audit)
+## FASE 3 — WhatsApp Gateway (REVISADA 2x: 4.5 → 5.0)
 
 **Status**: ⏳ Pendente  
-**Meta**: conectar ao WhatsApp via **whatsapp-web.js** (não mais Evolution API).
+**Meta**: conectar ao WhatsApp via **Baileys** (não mais wwebjs nem Evolution API).
 
-> **Decisão de arquitetura**: análise do `JARVIS-4.5` (ver [IDEIAS-JARVIS-4.5.md](docs/worker/IDEIAS-JARVIS-4.5.md))
-> mostrou que `whatsapp-web.js` (wwebjs) com LocalAuth é mais simples, sem Docker
-> overhead. Evolution API fica como fallback opcional.
+> **Decisão final**: auditoria do JARVIS 5.0 ([IDEIAS-JARVIS-5.0.md](docs/worker/IDEIAS-JARVIS-5.0.md))
+> mostrou que `@whiskeysockets/baileys` é superior — ~50MB RAM vs 200MB do wwebjs,
+> sem dependência de Chromium. Evolution API descartada.
 
 ### Tarefas
 
-- [ ] `bun add whatsapp-web.js qrcode` (dependências)
+- [ ] `bun add @whiskeysockets/baileys qrcode-terminal` (dependências)
 - [ ] `src/worker/gateways/whatsapp.ts` — interface abstrata `WhatsAppGateway`
-- [ ] `src/worker/gateways/wwebjs.ts` — implementação com wwebjs + LocalAuth
-- [ ] `src/worker/gateways/evolution.ts` — implementação Evolution API (opcional)
-- [ ] `src/worker/intent-router.ts` — regex pre-classification (portado do JARVIS 4.5)
-- [ ] `src/worker/messages.ts` — templates de mensagens centralizadas
-- [ ] `src/worker/dispatcher.ts` — orquestra: webhook → JARVIS Worker → resposta
-- [ ] `src/worker/server.ts` — adicionar `GET /qrcode` para escaneamento
-- [ ] QR code auto-restart + max attempts (5)
-- [ ] Auto-reconnect em disconnected (10s delay)
-- [ ] Chrome path autodetect (Windows/Linux)
-- [ ] Documentação (`docs/worker/FASE3-WHATSAPP.md` — atualizar)
+- [ ] `src/worker/gateways/baileys.ts` — implementação completa portada do 5.0:
+  - `useMultiFileAuthState` para persistência
+  - Auto-admin assignment (primeira mensagem define admin)
+  - Auto-reconnect exponential backoff (1s → 2s → 4s... max 30s, 5 tentativas)
+  - Áudio: download → Whisper STT → transcrição
+  - Imagem: download → Gemini Vision → análise
+  - `sendDocument()` para anexos
+  - `sendAlert()` para notificações proativas
+- [ ] `src/worker/intent-router.ts` — regex pre-classification (do 4.5)
+- [ ] `src/worker/messages.ts` — templates de mensagens
+- [ ] `src/worker/dispatcher.ts` — orquestra: msg → IntentRouter → Worker → resposta
+- [ ] `src/worker/server.ts` — adicionar `GET /api/whatsapp/qr` + `/api/whatsapp/status`
+- [ ] Documentação (`docs/worker/FASE3-WHATSAPP.md` — atualizar para Baileys)
 
 ### Critério de aceite
 
 - ✅ Mensagem no WhatsApp → JARVIS responde em < 5s
-- ✅ Desconexão → reconexão automática em < 30s
+- ✅ Desconexão → reconexão automática (exponential backoff)
 - ✅ Intent router classifica 90% por regex (sem LLM call)
-- ✅ Sessão WhatsApp persiste entre restarts (LocalAuth)
+- ✅ Sessão WhatsApp persiste entre restarts (multiFileAuthState)
+- ✅ RAM total < 100MB (vs ~200MB do wwebjs)
 
 ---
 
@@ -150,33 +155,50 @@
 
 ---
 
-## FASE 5 — Budget + Semantic Cache (EXPANDIDA)
+## FASE 5 — Budget + Cache + Approval + Checkpoints (EXPANDIDA 2x)
 
 **Status**: ⏳ Pendente  
-**Meta**: controle de gastos por usuário + cache de respostas.
+**Meta**: controle de gastos + cache + segurança em mudanças destrutivas.
 
-> JARVIS 4.5 mostrou que cache SHA-256 + TTL economiza ~30% das chamadas LLM.
+> Auditoria 5.0 adicionou: ApprovalSystem (Y/n DANGER_LEVELS), Checkpoints
+> (snapshots de arquivos), Plan Mode (READONLY/SANDBOX/PROD). Críticos antes
+> de expor `/api/exec`.
 
 ### Tarefas
 
-- [ ] `src/worker/budget.ts` — `BudgetController`
-- [ ] Limite diário por usuário
-- [ ] Limite global
-- [ ] Alerta a 80% do limite
-- [ ] Bloqueio automático ao estourar
+**Budget + Cache:**
+- [ ] `src/worker/budget.ts` — BudgetController com limite por usuário + global
+- [ ] Alerta a 80% + bloqueio automático ao estourar
 - [ ] `src/worker/response-cache.ts` — semantic cache file-based
-  - SHA-256 do prompt (lowercase + trim)
-  - TTL configurável por categoria (status=5min, code=1h, explain=24h)
-  - LRU eviction quando > 1000 entries
-  - Stats: hits/misses/hit_rate
-- [ ] Documentação (`docs/worker/FASE5-BUDGET-CACHE.md`)
+  - SHA-256 do prompt
+  - TTL por categoria (status=5min, code=1h, explain=24h)
+  - LRU eviction > 1000 entries
+
+**Segurança (do JARVIS 5.0):**
+- [ ] `src/worker/approval-system.ts` — Y/n com DANGER_LEVELS
+  - 4 níveis: low/medium/high/critical
+  - sanitizeParams() para mascarar tokens
+  - waitForApproval(id, timeout=5min)
+  - History de 100 approvals
+- [ ] `src/worker/checkpoints.ts` — snapshots de arquivos
+  - create(name, files) → checkpointId
+  - restore(checkpointId) → restaura arquivos
+  - BranchManager opcional para multiple states
+- [ ] `src/worker/plan-mode.ts` — 4 modos de operação
+  - ANALYSIS: só leitura + network
+  - READONLY: só leitura
+  - SANDBOX: write + bash + sem network
+  - PRODUCTION: tudo liberado
+  - `manager.checkPermission(action, target)` antes de cada tool
+- [ ] Documentação (`docs/worker/FASE5-SECURITY.md`)
 
 ### Critério de aceite
 
-- Usuário bloqueado ao atingir limite diário
-- Alerta enviado ao atingir 80%
-- Cache hit rate > 20% em uso típico
-- `/api/cost` mostra economia por cache
+- ✅ Usuário bloqueado ao atingir limite diário
+- ✅ Cache hit rate > 20% em uso típico
+- ✅ Ação `critical` (delete dir, exec destrutivo) pede Y/n via API
+- ✅ Edição de arquivo cria checkpoint automaticamente
+- ✅ Plan mode READONLY bloqueia 100% das writes
 
 ---
 
@@ -210,24 +232,83 @@
 
 ---
 
-## FASE 7 — Docker + Deploy
+## FASE 7 — Docker + Deploy + Sandbox + Skills
 
-**Meta**: containerização e deploy na VPS.
+**Status**: ⏳ Pendente  
+**Meta**: containerização, deploy, sandbox para `/api/exec`, sistema de plugins.
+
+> Auditoria 5.0 adicionou: Docker Sandbox (descartável para cada exec),
+> Skill System (Anthropic-style — extensibilidade sem tocar no core).
 
 ### Tarefas
 
-- [ ] `Dockerfile` multi-stage
-- [ ] `docker-compose.yml` (worker + Evolution API)
-- [ ] Script de setup da VPS
-- [ ] `systemd` service file
-- [ ] Documentação (`docs/worker/FASE7-DEPLOY.md`)
+**Deploy:**
+- [ ] `Dockerfile` multi-stage para o worker
+- [ ] `docker-compose.yml` (worker only — Baileys é Node nativo, sem Evolution API)
+- [ ] Script `scripts/setup-vps.sh` (Ubuntu + bun + node)
+- [ ] `systemd` service `jarvis-worker.service`
+
+**Sandbox (do JARVIS 5.0):**
+- [ ] `src/worker/sandbox.ts` — Docker container descartável
+  - Image: `jarvis-sandbox:latest`
+  - `--network none` (sem internet)
+  - Memory/CPU limits (512m/0.5)
+  - `runCommand(cmd)` → `{stdout, stderr, exitCode}`
+  - Auto-cleanup
+- [ ] `src/worker/server.ts` — adicionar `POST /api/exec` com sandbox
+- [ ] Integração com ApprovalSystem (Fase 5)
+
+**Skill System (do JARVIS 5.0):**
+- [ ] `src/worker/skills/registry.ts` — SkillRegistry
+  - load() escaneia `worker/skills/*/skill.js`
+  - Hooks: onStartup/onShutdown/onMessage/beforeExecute/afterExecute
+  - findByCommand() para roteamento
+- [ ] `src/worker/skills/example/skill.js` — skill template
+
+**Documentação:**
+- [ ] `docs/worker/FASE7-DEPLOY.md`
 
 ### Critério de aceite
 
-- `docker-compose up` inicia tudo
-- Worker reinicia automaticamente com `restart: unless-stopped`
+- ✅ `docker-compose up` inicia worker em < 30s
+- ✅ Worker reinicia com `restart: unless-stopped`
+- ✅ `POST /api/exec` roda em sandbox com timeout
+- ✅ Skills custom carregam de `worker/skills/`
 
 ---
+
+---
+
+## FASE 8 — PC CLI Bridge (OPCIONAL, do JARVIS 5.0)
+
+**Status**: ⏳ Idea  
+**Meta**: cliente CLI local que conecta na VPS via WebSocket.
+
+> Inspirado em `pc-cli/` do JARVIS 5.0. Permite controlar a VPS de qualquer
+> terminal (Windows/Linux) com `jarvis ask "..."`. Útil para uso pessoal,
+> opcional para multi-tenant.
+
+### Tarefas (se decidir implementar)
+
+- [ ] `pc-cli/` — projeto Node separado, instala globalmente
+- [ ] `pc-cli/bin/cli.js` — entrypoint `jarvis`
+- [ ] Comandos:
+  - `jarvis ask "..."` — pergunta direta
+  - `jarvis chat` — REPL interativo
+  - `jarvis listen` — stream de eventos (alertas, logs)
+  - `jarvis status` — health da VPS
+  - `jarvis fetch <path>` — extrair arquivo da VPS
+- [ ] `pc-cli/lib/ws-client.js` — cliente WebSocket criptografado
+- [ ] `src/worker/server.ts` — adicionar WebSocket endpoint
+- [ ] Auth via token (`WS_SECRET` em .env)
+- [ ] Fila offline (`MESSAGE_QUEUE` quando PC desconectado)
+- [ ] Notificações OS nativas (Windows balloon, Linux notify-send)
+
+### Critério de aceite
+
+- ✅ `jarvis ask "..."` no PC chega na VPS e volta < 2s
+- ✅ PC desconecta + reconecta → mensagens da fila são entregues
+- ✅ Alerta crítico (CPU > 90%) gera notification no PC
 
 ---
 
