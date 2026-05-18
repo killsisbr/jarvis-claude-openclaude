@@ -24,7 +24,10 @@
     "onCommand:openclaude.resumeSession",
     "onCommand:openclaude.abortChat",
     "onView:openclaude.controlCenter",
-    "onView:openclaude.chat"
+    "onView:openclaude.chat",
+    "onView:openclaude.skills",
+    "onView:openclaude.status",
+    "onView:openclaude.quickActions"
   ],
   "main": "./src/extension.js",
   "files": [
@@ -100,6 +103,21 @@
     },
     "views": {
       "openclaude": [
+        {
+          "id": "openclaude.quickActions",
+          "name": "Quick Actions",
+          "type": "webview"
+        },
+        {
+          "id": "openclaude.skills",
+          "name": "Skills Manager",
+          "type": "webview"
+        },
+        {
+          "id": "openclaude.status",
+          "name": "Status Monitor",
+          "type": "webview"
+        },
         {
           "id": "openclaude.chat",
           "name": "Chat",

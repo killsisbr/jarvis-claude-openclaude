@@ -15,6 +15,9 @@ const { buildControlCenterViewModel } = require('./presentation');
 const { ChatController, OpenClaudeChatViewProvider, OpenClaudeChatPanelManager } = require('./chat/chatProvider');
 const { SessionManager } = require('./chat/sessionManager');
 const { DiffContentProvider, SCHEME: DIFF_SCHEME } = require('./chat/diffController');
+const { SkillsViewProvider } = require('./skills/skillsProvider');
+const { StatusMonitorProvider } = require('./status/statusProvider');
+const { QuickActionsProvider } = require('./quickActions/quickActionsProvider');
 
 const OPENCLAUDE_REPO_URL = 'https://github.com/Gitlawb/openclaude';
 const OPENCLAUDE_SETUP_URL = 'https://github.com/Gitlawb/openclaude/blob/main/README.md#quick-start';
@@ -1061,6 +1064,11 @@ function activate(context) {
   const chatViewProvider = new OpenClaudeChatViewProvider(chatController);
   const chatPanelManager = new OpenClaudeChatPanelManager(chatController);
 
+  // ── New providers (Fase 7+) ──
+  const skillsProvider = new SkillsViewProvider(sessionManager);
+  const statusMonitorProvider = new StatusMonitorProvider();
+  const quickActionsProvider = new QuickActionsProvider(sessionManager, statusMonitorProvider);
+
   // ── Diff content provider ──
   const diffProvider = new DiffContentProvider();
   const diffProviderReg = vscode.workspace.registerTextDocumentContentProvider(
@@ -1177,6 +1185,24 @@ function activate(context) {
     { webviewOptions: { retainContextWhenHidden: true } },
   );
 
+  const skillsProviderReg = vscode.window.registerWebviewViewProvider(
+    'openclaude.skills',
+    skillsProvider,
+    { webviewOptions: { retainContextWhenHidden: true } },
+  );
+
+  const statusMonitorReg = vscode.window.registerWebviewViewProvider(
+    'openclaude.status',
+    statusMonitorProvider,
+    { webviewOptions: { retainContextWhenHidden: true } },
+  );
+
+  const quickActionsReg = vscode.window.registerWebviewViewProvider(
+    'openclaude.quickActions',
+    quickActionsProvider,
+    { webviewOptions: { retainContextWhenHidden: true } },
+  );
+
   const profileWatcher = vscode.workspace.createFileSystemWatcher(`**/${PROFILE_FILE_NAME}`);
 
   context.subscriptions.push(
@@ -1196,6 +1222,10 @@ function activate(context) {
     chatViewProviderReg,
     diffProviderReg,
     statusBarItem,
+    // new providers (Fase 7+)
+    skillsProviderReg,
+    statusMonitorReg,
+    quickActionsReg,
     // watchers
     profileWatcher,
     vscode.workspace.onDidChangeConfiguration(event => {
@@ -1218,6 +1248,9 @@ function activate(context) {
     { dispose: () => chatController.dispose() },
     { dispose: () => chatPanelManager.dispose() },
     { dispose: () => diffProvider.dispose() },
+    { dispose: () => skillsProvider.dispose() },
+    { dispose: () => statusMonitorProvider.dispose() },
+    { dispose: () => quickActionsProvider.dispose() },
   );
 }
 

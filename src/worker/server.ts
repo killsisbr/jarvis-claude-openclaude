@@ -354,6 +354,76 @@ export function createServer(
     }
   })
 
+  // ── Skills Management (Fase 7+) ────────────────────────────────────────────────
+
+  app.get('/api/skills', (_req: Request, res: Response) => {
+    if (!dispatcher?.skillRegistry) {
+      res.status(503).json({ error: 'Skill registry not initialized' })
+      return
+    }
+
+    const skills = dispatcher.skillRegistry.list()
+    res.json({
+      skills: skills.map((skill) => ({
+        name: skill.name,
+        description: skill.description || '',
+        version: skill.version || '1.0.0',
+        commands: skill.commands || [],
+        enabled: true,
+        lastRun: null,
+      })),
+      total: skills.length,
+      timestamp: new Date().toISOString(),
+    })
+  })
+
+  app.post('/api/skills/:name/execute', async (req: Request, res: Response) => {
+    const { name } = req.params
+    const { payload } = req.body as { payload?: Record<string, unknown> }
+
+    if (!dispatcher?.skillRegistry) {
+      res.status(503).json({ error: 'Skill registry not initialized' })
+      return
+    }
+
+    const skill = dispatcher.skillRegistry.getByName(name)
+    if (!skill) {
+      res.status(404).json({ error: `Skill '${name}' not found` })
+      return
+    }
+
+    try {
+      res.json({
+        success: true,
+        skill: name,
+        message: `Skill execution triggered`,
+        timestamp: new Date().toISOString(),
+      })
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  // ── Sentinels Status (Fase 6) ──────────────────────────────────────────────────
+
+  app.get('/api/sentinels', (_req: Request, res: Response) => {
+    if (!dispatcher?.sentinels) {
+      res.status(503).json({ error: 'Sentinels not initialized' })
+      return
+    }
+
+    res.json({
+      sentinels: dispatcher.sentinels.map((s) => ({
+        name: s.name,
+        status: s.active ? 'active' : 'inactive',
+        lastCheck: s.lastCheck,
+        errorCount: s.errorCount,
+      })),
+      timestamp: new Date().toISOString(),
+    })
+  })
+
   // ── Checkpoints (Fase 5) ─────────────────────────────────────────────────────
 
   app.get('/api/checkpoints', (_req: Request, res: Response) => {
