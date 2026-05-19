@@ -526,6 +526,59 @@ export function createServer(
     })
   })
 
+  // ── Documentation (Fase 8.3) ──────────────────────────────────────────────
+
+  app.get('/api/docs', async (_req: Request, res: Response) => {
+    const { loadDocumentation } = await import('./doc-generator')
+
+    try {
+      const markdown = await loadDocumentation()
+
+      if (!markdown) {
+        res.status(404).json({ error: 'Documentation not found. Generate with POST /api/docs/generate' })
+        return
+      }
+
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+      res.send(markdown)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.post('/api/docs/generate', async (_req: Request, res: Response) => {
+    const { regenerateDocumentation, getDocumentationStats } = await import('./doc-generator')
+
+    try {
+      const result = await regenerateDocumentation()
+      const stats = getDocumentationStats()
+
+      res.json({
+        success: result.success,
+        latencyMs: result.latencyMs,
+        size: result.size,
+        stats,
+        timestamp: new Date().toISOString(),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get('/api/docs/stats', async (_req: Request, res: Response) => {
+    const { getDocumentationStats } = await import('./doc-generator')
+
+    try {
+      const stats = getDocumentationStats()
+      res.json(stats)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
   // Error handler ───────────────────────────────────────────────────────────────
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
