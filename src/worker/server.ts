@@ -405,6 +405,53 @@ export function createServer(
     }
   })
 
+  // ── Learnings System ───────────────────────────────────────────────────────────
+
+  app.get('/api/learnings/stats', (_req: Request, res: Response) => {
+    const { getStats, getCacheStats } = require('./db/learnings')
+    const { getCacheStats: getLearningCacheStats } = require('./learning-context')
+
+    try {
+      const dbStats = getStats()
+      const cacheStats = getLearningCacheStats()
+      res.json({
+        database: dbStats,
+        cache: cacheStats,
+        timestamp: new Date().toISOString(),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get('/api/learnings/review-due/:userId', (req: Request, res: Response) => {
+    const { userId } = req.params
+    const { limit } = req.query as { limit?: string }
+
+    const { getReviewDue } = require('./db/learnings')
+
+    try {
+      const learnings = getReviewDue(userId, limit ? parseInt(limit) : 10)
+      res.json({
+        userId,
+        count: learnings.length,
+        learnings: learnings.map((l: any) => ({
+          id: l.id,
+          type: l.type,
+          content: l.content.substring(0, 100),
+          confidence: l.confidence,
+          relevance: l.relevance,
+          nextReviewAt: new Date(l.nextReviewAt).toISOString(),
+        })),
+        timestamp: new Date().toISOString(),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
   // ── Sentinels Status (Fase 6) ──────────────────────────────────────────────────
 
   app.get('/api/sentinels', (_req: Request, res: Response) => {

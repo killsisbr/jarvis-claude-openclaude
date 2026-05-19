@@ -199,6 +199,11 @@ export function getStats(): {
   };
 }
 
+export function getCacheStats(): { cached: number } {
+  // This will be overridden in learning-context.ts but needed here for API
+  return { cached: 0 };
+}
+
 export function getAllLearnings(): Learning[] {
   const db = getDatabase();
 

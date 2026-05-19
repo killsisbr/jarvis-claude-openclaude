@@ -29,6 +29,11 @@ import {
   type Session,
 } from './session-store.ts'
 import { getDatabase } from './db/schema.ts'
+import {
+  extractRelevantLearnings,
+  formatLearningsContext,
+  registerLearningFromResponse,
+} from './learning-context.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -147,13 +152,16 @@ export class JarvisWorker {
         baseURL: provider.baseURL,
         apiKey: provider.apiKey,
         model,
-        messages: this.buildMessages(messages, session),
+        messages: this.buildMessages(messages, session, userId),
       })
 
       reply = result.reply
       inputTokens = result.inputTokens
       outputTokens = result.outputTokens
       outcome = 'success'
+
+      // Register learnings from successful response
+      registerLearningFromResponse(userId, userMessage, reply, category)
 
       if (routeResult) {
         reportOutcome(target, { kind: 'success', apiKey: provider.apiKey, tokens: inputTokens + outputTokens }, this.config.agentModels)
@@ -236,11 +244,23 @@ export class JarvisWorker {
   private buildMessages(
     history: { role: 'user' | 'assistant'; content: string }[],
     _session: Session,
+    userId?: string,
   ) {
-    const systemPrompt = this.config.systemPrompt ?? [
+    let systemPrompt = this.config.systemPrompt ?? [
       'Você é o JARVIS, um assistente de IA especializado em desenvolvimento de software.',
       'Seja conciso, preciso e direto. Responda em português quando o usuário escrever em português.',
     ].join(' ')
+
+    // Inject relevant learnings if userId provided
+    if (userId) {
+      const userMessage = history.length > 0 ? history[history.length - 1].content : ''
+      const learnings = extractRelevantLearnings(userId, userMessage)
+
+      if (learnings.length > 0) {
+        const learningContext = formatLearningsContext(learnings)
+        systemPrompt += learningContext
+      }
+    }
 
     return [
       { role: 'system' as const, content: systemPrompt },
