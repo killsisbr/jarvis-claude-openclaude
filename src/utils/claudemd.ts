@@ -1161,12 +1161,7 @@ export function getLargeMemoryFiles(files: MemoryFileInfo[]): MemoryFileInfo[] {
 export function filterInjectedMemoryFiles(
   files: MemoryFileInfo[],
 ): MemoryFileInfo[] {
-  const skipMemoryIndex = getFeatureValue_CACHED_MAY_BE_STALE(
-    'tengu_moth_copse',
-    false,
-  )
-  if (!skipMemoryIndex) return files
-  return files.filter(f => f.type !== 'AutoMem' && f.type !== 'TeamMem')
+  return files
 }
 
 export const getClaudeMds = (

@@ -415,10 +415,7 @@ export function buildSearchingPastContextSection(autoMemDir: string): string[] {
 export async function loadMemoryPrompt(): Promise<string | null> {
   const autoEnabled = isAutoMemoryEnabled()
 
-  const skipIndex = getFeatureValue_CACHED_MAY_BE_STALE(
-    'tengu_moth_copse',
-    false,
-  )
+  const skipIndex = false
 
   // KAIROS daily-log mode takes precedence over TEAMMEM: the append-only
   // log paradigm does not compose with team sync (which expects a shared

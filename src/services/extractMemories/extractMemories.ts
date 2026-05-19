@@ -362,10 +362,7 @@ export function initExtractMemories(): void {
       ? teamMemPaths!.isTeamMemoryEnabled()
       : false
 
-    const skipIndex = getFeatureValue_CACHED_MAY_BE_STALE(
-      'tengu_moth_copse',
-      false,
-    )
+    const skipIndex = false
 
     const canUseTool = createAutoMemCanUseTool(memoryDir)
     const cacheSafeParams = createCacheSafeParams(context)
