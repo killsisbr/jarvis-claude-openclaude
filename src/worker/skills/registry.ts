@@ -20,7 +20,9 @@ export class SkillRegistry {
 
         try {
           // Dynamic import of skill module
-          const skillModule = await import(`file://${skillPath}`);
+          // Normalize path to use forward slashes for file:// URL
+          const normalizedPath = skillPath.replace(/\\/g, '/');
+          const skillModule = await import(`file://${normalizedPath}`);
           const skill: Skill = skillModule.default || skillModule;
 
           if (!skill.name) {
