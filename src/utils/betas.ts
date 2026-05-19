@@ -318,9 +318,7 @@ export const getAllModelBetas = memoize((model: string): string[] => {
     checkStatsigFeatureGate_CACHED_MAY_BE_STALE('tengu_tool_pear')
   // 3P default: false. API rejects strict + token-efficient-tools together
   // (tool_use.py:139), so these are mutually exclusive — strict wins.
-  const tokenEfficientToolsEnabled =
-    !strictToolsEnabled &&
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_amber_json_tools', false)
+  const tokenEfficientToolsEnabled = false
   if (
     includeFirstPartyOnlyBetas &&
     modelSupportsStructuredOutputs(model) &&

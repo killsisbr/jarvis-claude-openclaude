@@ -10,7 +10,6 @@
  * marketplace filtering is hardcoded for v1.
  */
 
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
@@ -63,7 +62,9 @@ export type PluginHintRecommendation = {
  * later in resolvePluginHint (hook side).
  */
 export function maybeRecordPluginHint(hint: ClaudeCodeHint): void {
-  if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_lapis_finch', false)) return
+  // Plugin hints disabled by default
+  return
+  // eslint-disable-next-line unreachable-code
   if (hasShownHintThisSession()) return
 
   const state = getGlobalConfig().claudeCodeHints

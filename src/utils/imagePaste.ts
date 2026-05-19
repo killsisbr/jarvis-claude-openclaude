@@ -6,7 +6,6 @@ import {
   IMAGE_MAX_WIDTH,
   IMAGE_TARGET_RAW_SIZE,
 } from '../constants/apiLimits.js'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { getImageProcessor } from '../tools/FileReadTool/imageProcessor.js'
 import { logForDebugging } from './debug.js'
 import { execFileNoThrowWithCwd } from './execFileNoThrow.js'
@@ -18,10 +17,6 @@ import {
 } from './imageResizer.js'
 import { logError } from './log.js'
 
-// Native NSPasteboard reader. GrowthBook gate tengu_collage_kaleidoscope is
-// a kill switch (default on). Falls through to osascript when off.
-// The gate string is inlined at each callsite INSIDE the feature() condition
-// — module-scope helpers are NOT tree-shaken (see docs/feature-gating.md).
 
 type SupportedPlatform = 'darwin' | 'linux' | 'win32'
 
@@ -120,23 +115,6 @@ export async function hasImageInClipboard(): Promise<boolean> {
   if (process.platform !== 'darwin') {
     return false
   }
-  if (
-    false &&
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_collage_kaleidoscope', true)
-  ) {
-    // Native NSPasteboard check (~0.03ms warm). Fall through to osascript
-    // when the module/export is missing. Catch a throw too: it would surface
-    // as an unhandled rejection in useClipboardImageHint's setTimeout.
-    try {
-      const { getNativeModule } = await import('image-processor-napi')
-      const hasImage = getNativeModule()?.hasClipboardImage
-      if (hasImage) {
-        return hasImage()
-      }
-    } catch (e) {
-      logError(e as Error)
-    }
-  }
   const result = await execFileNoThrowWithCwd('osascript', [
     '-e',
     'the clipboard as «class PNGf»',
@@ -151,11 +129,8 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
   // path below. Throws if the native module is unavailable, in which case
   // the catch block falls through to osascript. A `null` return from the
   // native call is authoritative (clipboard has no image).
-  if (
-    false &&
-    process.platform === 'darwin' &&
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_collage_kaleidoscope', true)
-  ) {
+  if (false) {
+    // Native path disabled at build time
     try {
       const { getNativeModule } = await import('image-processor-napi')
       const readClipboard = getNativeModule()?.readClipboardImage

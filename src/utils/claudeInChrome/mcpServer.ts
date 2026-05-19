@@ -7,7 +7,6 @@ import {
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { format } from 'util'
 import { shutdownDatadog } from '../../services/analytics/datadog.js'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -48,9 +47,7 @@ function isPermissionMode(raw: string): raw is PermissionMode {
  * bridge. API key / 3P users fall back to native messaging.
  */
 function getChromeBridgeUrl(): string | undefined {
-  const bridgeEnabled =
-    process.env.USER_TYPE === 'ant' ||
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_copper_bridge', false)
+  const bridgeEnabled = process.env.USER_TYPE === 'ant'
 
   if (!bridgeEnabled) {
     return undefined
