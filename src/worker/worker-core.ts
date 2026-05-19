@@ -36,6 +36,8 @@ import {
 } from './learning-context.ts'
 import { initializeIndex } from './vectordb/orama-store.ts'
 import { extractUserPreferences, formatUserPreferences } from './services/preference-extractor.ts'
+import { getSmartCache } from './services/smart-cache.ts'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -153,14 +155,50 @@ export class JarvisWorker {
     let outputTokens = 0
     let outcome: 'success' | 'rate_limit' | 'error' = 'success'
     let errorMsg: string | undefined
+    let fromCache = false
 
     try {
-      const result = await this.callLLM({
-        baseURL: provider.baseURL,
-        apiKey: provider.apiKey,
-        model,
-        messages: await this.buildMessages(messages, session, userId),
-      })
+      // Build system prompt to calculate hash
+      const builtMessages = await this.buildMessages(messages, session, userId)
+      const systemPrompt = builtMessages[0]?.content || ''
+      const systemPromptHash = createHash('sha256').update(systemPrompt).digest('hex')
+
+      // Check SmartCache
+      const cache = getSmartCache()
+      const cacheEntry = await cache.getCachedContext(userId, userMessage, model, systemPromptHash)
+
+      let result
+      if (cacheEntry) {
+        // Use cached context
+        fromCache = true
+        console.log(`[worker] Cache hit for ${userId}: similarity=${(cacheEntry.similarity * 100).toFixed(1)}%`)
+
+        // Return cached reply (simulated - in real implementation would use cached messages)
+        result = {
+          reply: cacheEntry.context.messages[cacheEntry.context.messages.length - 1]?.content || 'Cached response',
+          inputTokens: 0,
+          outputTokens: 0,
+        }
+      } else {
+        // Call LLM and cache result
+        result = await this.callLLM({
+          baseURL: provider.baseURL,
+          apiKey: provider.apiKey,
+          model,
+          messages: builtMessages,
+        })
+
+        // Cache the context for future use
+        await cache.cacheContext({
+          user_id: userId,
+          model,
+          system_prompt_hash: systemPromptHash,
+          messages: [...messages, { role: 'assistant' as const, content: result.reply }],
+          last_message: userMessage,
+          hit_count: 0,
+          last_used_at: Date.now(),
+        })
+      }
 
       reply = result.reply
       inputTokens = result.inputTokens
@@ -168,7 +206,9 @@ export class JarvisWorker {
       outcome = 'success'
 
       // Register learnings from successful response
-      await registerLearningFromResponse(userId, userMessage, reply, category)
+      if (!fromCache) {
+        await registerLearningFromResponse(userId, userMessage, reply, category)
+      }
 
       if (routeResult) {
         reportOutcome(target, { kind: 'success', apiKey: provider.apiKey, tokens: inputTokens + outputTokens }, this.config.agentModels)
