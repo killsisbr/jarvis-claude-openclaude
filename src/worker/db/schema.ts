@@ -232,6 +232,20 @@ function initializeSchema(): void {
   database.run(`CREATE INDEX IF NOT EXISTS idx_routing_weights_timestamp ON routing_weights_history(timestamp DESC)`);
   database.run(`CREATE INDEX IF NOT EXISTS idx_routing_weights_source ON routing_weights_history(source)`);
 
+  // API Users for remote authentication
+  database.run(`CREATE TABLE IF NOT EXISTS api_users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    api_key TEXT UNIQUE NOT NULL,
+    is_admin BOOLEAN DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER,
+    is_active BOOLEAN DEFAULT 1
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_api_users_api_key ON api_users(api_key)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_api_users_username ON api_users(username)`);
+
   console.log("[schema] ✓ Database schema initialized");
 }
 
