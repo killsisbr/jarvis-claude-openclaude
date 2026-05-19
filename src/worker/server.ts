@@ -15,10 +15,18 @@ import type { SandboxManager } from './sandbox.ts'
 
 export function createServer(
   worker: JarvisWorker,
-  dispatcher?: MessageDispatcher
+  dispatcher?: MessageDispatcher,
+  httpServer?: any
 ): express.Application {
   const app = express()
   app.use(express.json())
+
+  // Initialize WebSocket for skill hot-reload (Fase 8.5)
+  if (httpServer) {
+    const { getSkillWebSocketManager } = require('./services/skill-websocket')
+    const wsManager = getSkillWebSocketManager()
+    wsManager.initialize(httpServer, '/ws/skills')
+  }
 
   // ── Health ──────────────────────────────────────────────────────────────────
 
@@ -401,6 +409,69 @@ export function createServer(
       })
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  // ── Skills Hot-Reload (Fase 8.5) ───────────────────────────────────────────
+
+  app.post('/api/skills/reload/:name', async (req: Request, res: Response) => {
+    const { name } = req.params
+    const { getSkillReloader } = await import('./services/skill-reloader')
+    const { getSkillWebSocketManager } = await import('./services/skill-websocket')
+
+    const reloader = getSkillReloader()
+    const wsManager = getSkillWebSocketManager()
+
+    try {
+      // Notify clients reload starting
+      wsManager.notifyReloadStart(name)
+
+      // TODO: Get actual skill path from registry
+      // For now, construct path
+      const path = `~/.jarvis/skills/${name}/skill.js`
+
+      const result = await reloader.reload(path)
+
+      if (result.success) {
+        wsManager.notifyReloadSuccess(name, result.latencyMs)
+        res.json({
+          success: true,
+          skill: name,
+          latencyMs: result.latencyMs,
+          timestamp: new Date().toISOString(),
+        })
+      } else {
+        wsManager.notifyReloadError(name, result.error || 'Unknown error')
+        res.status(400).json({
+          success: false,
+          skill: name,
+          error: result.error,
+          latencyMs: result.latencyMs,
+        })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      wsManager.notifyReloadError(name, msg)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get('/api/skills/reload-status', async (_req: Request, res: Response) => {
+    const { getSkillReloader } = await import('./services/skill-reloader')
+    const { getSkillWebSocketManager } = await import('./services/skill-websocket')
+
+    try {
+      const reloader = getSkillReloader()
+      const wsManager = getSkillWebSocketManager()
+
+      res.json({
+        reloads: reloader.getMetrics(),
+        websocketClients: wsManager.getClientCount(),
+        timestamp: new Date().toISOString(),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
       res.status(500).json({ error: msg })
     }
   })
