@@ -57,7 +57,7 @@ export function UserPromptMessage({
   const briefEnvEnabled = false || false ?
   // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
   useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_BRIEF), []) : false;
-  const useBriefLayout = false || false ? (getKairosActive() || getUserMsgOptIn() && (briefEnvEnabled || getFeatureValue_CACHED_MAY_BE_STALE('tengu_kairos_brief', false))) && isBriefOnly && !isTranscriptMode && !viewingAgentTaskId : false;
+  const useBriefLayout = false;
 
   // Truncate before the early return so the hook order is stable.
   const displayText = useMemo(() => {

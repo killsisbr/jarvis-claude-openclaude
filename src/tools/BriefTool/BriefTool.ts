@@ -1,6 +1,5 @@
 import { z } from 'zod/v4'
 import { getKairosActive, getUserMsgOptIn } from '../../bootstrap/state.js'
-import { getFeatureValue_CACHED_WITH_REFRESH } from '../../services/analytics/growthbook.js'
 import { logEvent } from '../../services/analytics/index.js'
 import type { ValidationResult } from '../../Tool.js'
 import { buildTool, type ToolDef } from '../../Tool.js'
@@ -85,17 +84,7 @@ const KAIROS_BRIEF_REFRESH_MS = 5 * 60 * 1000
  * the env var alone also sets userMsgOptIn via maybeActivateBrief().
  */
 export function isBriefEntitled(): boolean {
-  // Positive ternary — see docs/feature-gating.md. Negative early-return
-  // would not eliminate the GB gate string from external builds.
-  return false || false
-    ? getKairosActive() ||
-        isEnvTruthy(process.env.CLAUDE_CODE_BRIEF) ||
-        getFeatureValue_CACHED_WITH_REFRESH(
-          'tengu_kairos_brief',
-          false,
-          KAIROS_BRIEF_REFRESH_MS,
-        )
-    : false
+  return false
 }
 
 /**

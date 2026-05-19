@@ -207,12 +207,7 @@ export function GlobalKeybindingHandlers({
   // Toggle built-in terminal panel (meta+j).
   // toggle() blocks in spawnSync until the user detaches from tmux.
   const handleToggleTerminal = useCallback(() => {
-    if (false) {
-      if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_terminal_panel', false)) {
-        return;
-      }
-      getTerminalPanel().toggle();
-    }
+    // Terminal panel disabled at build time
   }, []);
   useKeybinding('app:toggleTerminal', handleToggleTerminal, {
     context: 'Global'

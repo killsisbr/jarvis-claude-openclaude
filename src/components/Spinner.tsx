@@ -70,12 +70,7 @@ export function SpinnerWithVerb(props: Props): React.ReactNode {
   // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
   useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_BRIEF), []) : false;
 
-  // Runtime gate mirrors isBriefEnabled() but inlined — importing from
-  // BriefTool.ts would leak tool-name strings into external builds. Single
-  // spinner instance → hooks stay unconditional (two subs, negligible).
-  if ((false || false) && (getKairosActive() || getUserMsgOptIn() && (briefEnvEnabled || getFeatureValue_CACHED_MAY_BE_STALE('tengu_kairos_brief', false))) && isBriefOnly && !viewingAgentTaskId) {
-    return <BriefSpinner mode={props.mode} overrideMessage={props.overrideMessage} />;
-  }
+  // Brief spinner disabled at build time
   return <SpinnerWithVerbInner {...props} />;
 }
 function SpinnerWithVerbInner({
