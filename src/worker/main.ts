@@ -66,6 +66,30 @@ async function main() {
       }
     }
 
+    // Register cron jobs for skills with onCron handlers
+    console.log('[startup] Registrando cron jobs de skills...')
+    for (const skill of loadedSkills) {
+      if (skill.onCron) {
+        try {
+          // Auto-evolve runs every 6 hours
+          const intervalMs = skill.name === 'auto-evolve'
+            ? 6 * 60 * 60 * 1000  // 6 hours
+            : 60 * 60 * 1000       // default 1 hour
+
+          dispatcher.cronScheduler.schedule(
+            skill.name,
+            intervalMs,
+            async () => {
+              await skill.onCron!(skill.name)
+            }
+          )
+          console.log(`[startup]   ✓ ${skill.name} agendado (${intervalMs / 60000}min)`)
+        } catch (err) {
+          console.error(`[startup] Erro ao agendar skill ${skill.name}:`, err)
+        }
+      }
+    }
+
     // Setup dispatcher listeners para logs
     dispatcher.on('session_created', (data) => {
       console.log(`[whatsapp] Nova sessão: ${data.userName} (${data.userId})`)

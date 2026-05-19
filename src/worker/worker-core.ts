@@ -37,6 +37,7 @@ import {
 import { initializeIndex } from './vectordb/orama-store.ts'
 import { extractUserPreferences, formatUserPreferences } from './services/preference-extractor.ts'
 import { getSmartCache } from './services/smart-cache.ts'
+import { recordRoutingMetric } from './db/routing-metrics.ts'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -254,6 +255,21 @@ export class JarvisWorker {
     })
 
     this.queriesTotal++
+
+    // Record routing metrics for Auto-Evolve optimization
+    try {
+      const successRate = outcome === 'success' ? 1.0 : 0.0
+      recordRoutingMetric(
+        model,
+        String(category),
+        [latencyMs],  // latencies array
+        [cost],       // costs array
+        outcome === 'success' ? 1 : 0,  // success count
+        1             // total count
+      )
+    } catch (err) {
+      console.error('[worker] Erro ao registrar métrica de routing:', err)
+    }
 
     return {
       reply,
