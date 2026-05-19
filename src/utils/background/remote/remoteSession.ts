@@ -75,8 +75,7 @@ export async function checkBackgroundRemoteSessionEligibility({
   const bundleSeedGateOn =
     !skipBundle &&
     (isEnvTruthy(process.env.CCR_FORCE_BUNDLE) ||
-      isEnvTruthy(process.env.CCR_ENABLE_BUNDLE) ||
-      (await checkGate_CACHED_OR_BLOCKING('tengu_ccr_bundle_seed_enabled')))
+      isEnvTruthy(process.env.CCR_ENABLE_BUNDLE))
 
   if (!checkIsInGitRepo()) {
     errors.push({ type: 'not_in_git_repo' })
