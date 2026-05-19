@@ -13,7 +13,6 @@ import { logError } from '../../utils/log.js'
 import { tokenCountWithEstimation } from '../../utils/tokens.js'
 import { partitionContext } from '../../utils/contextPartitioning.js'
 import { pruneByRelevance } from '../../utils/relevancePruning.js'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 import { getMaxOutputTokensForModel } from '../api/claude.js'
 import { notifyCompaction } from '../api/promptCacheBreakDetection.js'
 import { setLastSummarizedMessageId } from '../SessionMemory/sessionMemoryUtils.js'
@@ -203,11 +202,6 @@ export async function shouldAutoCompact(
   // Note: returning false here also means autoCompactIfNeeded never reaches
   // trySessionMemoryCompaction in the query loop — the /compact call site
   // still tries session memory first. Revisit if reactive-only graduates.
-  if (false) {
-    if (getFeatureValue_CACHED_MAY_BE_STALE('tengu_cobalt_raccoon', false)) {
-      return false
-    }
-  }
 
   // Context-collapse mode: same suppression. Collapse IS the context
   // management system when it's on — the 90% commit / 95% blocking-spawn
