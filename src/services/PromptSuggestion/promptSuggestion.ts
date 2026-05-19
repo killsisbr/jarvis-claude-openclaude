@@ -139,9 +139,14 @@ export async function tryGenerateSuggestion(
   }
 
   const assistantTurnCount = count(messages, m => m.type === 'assistant')
-  if (assistantTurnCount < 2) {
-    logSuggestionSuppressed('early_conversation', undefined, undefined, source)
-    return null
+  // Allow suggestions from first response, but throttle turn 0 to avoid overwhelming new users
+  if (assistantTurnCount === 0) {
+    // First response: probabilistic throttling (30% chance to show, 70% to suppress)
+    const suppressionRate = 0.7
+    if (Math.random() < suppressionRate) {
+      logSuggestionSuppressed('early_conversation_throttled', undefined, undefined, source)
+      return null
+    }
   }
 
   const lastAssistantMessage = getLastAssistantMessage(messages)
