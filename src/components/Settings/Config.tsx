@@ -492,7 +492,7 @@ export function Config({
         enabled: terminalProgressBarEnabled
       });
     }
-  }, ...(getFeatureValue_CACHED_MAY_BE_STALE('tengu_terminal_sidebar', false) ? [{
+  }, {
     id: 'showStatusInTerminalTab',
     label: 'Show status in terminal tab',
     value: globalConfig.showStatusInTerminalTab ?? false,
@@ -510,7 +510,7 @@ export function Config({
         enabled: showStatusInTerminalTab
       });
     }
-  }] : []), {
+  }, {
     id: 'showTurnDuration',
     label: 'Show turn duration',
     value: globalConfig.showTurnDuration,
