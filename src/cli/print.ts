@@ -2890,10 +2890,7 @@ function runHeadlessStreaming(
             })
           }
 
-          if (
-            message.request.agentProgressSummaries &&
-            getFeatureValue_CACHED_MAY_BE_STALE('tengu_slate_prism', true)
-          ) {
+          if (message.request.agentProgressSummaries) {
             setSdkAgentProgressSummariesEnabled(true)
           }
 

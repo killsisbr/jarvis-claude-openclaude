@@ -249,8 +249,7 @@ export async function toolToAPISchema(
     if (
       getAPIProvider() === 'firstParty' &&
       isFirstPartyAnthropicBaseUrl() &&
-      (getFeatureValue_CACHED_MAY_BE_STALE('tengu_fgts', false) ||
-        isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING))
+      isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING)
     ) {
       base.eager_input_streaming = true
     }

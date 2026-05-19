@@ -370,15 +370,12 @@ export function initExtractMemories(): void {
     const canUseTool = createAutoMemCanUseTool(memoryDir)
     const cacheSafeParams = createCacheSafeParams(context)
 
-    // Only run extraction every N eligible turns (tengu_bramble_lintel, default 1).
+    // Only run extraction every N eligible turns (default 1).
     // Trailing extractions (from stashed contexts) skip this check since they
     // process already-committed work that should not be throttled.
     if (!isTrailingRun) {
       turnsSinceLastExtraction++
-      if (
-        turnsSinceLastExtraction <
-        (getFeatureValue_CACHED_MAY_BE_STALE('tengu_bramble_lintel', null) ?? 1)
-      ) {
+      if (turnsSinceLastExtraction < 1) {
         return
       }
     }
@@ -529,14 +526,6 @@ export function initExtractMemories(): void {
   ): Promise<void> {
     // Only run for the main agent, not subagents
     if (context.toolUseContext.agentId) {
-      return
-    }
-
-    if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_passport_quail', false)) {
-      if (process.env.USER_TYPE === 'ant' && !hasLoggedGateFailure) {
-        hasLoggedGateFailure = true
-        logEvent('tengu_extract_memories_gate_disabled', {})
-      }
       return
     }
 
