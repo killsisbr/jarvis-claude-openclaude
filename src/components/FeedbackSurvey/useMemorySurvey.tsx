@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { isFeedbackSurveyDisabled } from 'src/services/analytics/config.js';
-import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
 import { isAutoMemoryEnabled } from '../../memdir/paths.js';
 import { isPolicyAllowed } from '../../services/policyLimits/index.js';
@@ -15,7 +14,6 @@ import type { TranscriptShareResponse } from './TranscriptSharePrompt.js';
 import { useSurveyState } from './useSurveyState.js';
 import type { FeedbackSurveyResponse } from './utils.js';
 const HIDE_THANKS_AFTER_MS = 3000;
-const MEMORY_SURVEY_GATE = 'tengu_dunwich_bell';
 const MEMORY_SURVEY_EVENT = 'tengu_memory_survey_event';
 const SURVEY_PROBABILITY = 0.2;
 const TRANSCRIPT_SHARE_TRIGGER = 'memory_survey';
@@ -148,10 +146,8 @@ export function useMemorySurvey(messages: Message[], isLoading: boolean, hasActi
       return;
     }
 
-    // 3P default: survey off (no GrowthBook on Bedrock/Vertex/Foundry).
-    if (!getFeatureValue_CACHED_MAY_BE_STALE(MEMORY_SURVEY_GATE, false)) {
-      return;
-    }
+    // Memory survey is disabled in external builds
+    return;
     if (!isAutoMemoryEnabled()) {
       return;
     }

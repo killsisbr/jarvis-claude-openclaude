@@ -253,12 +253,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
     // the flag was added server-side) defaults to false and silently drops
     // channel notifications for the whole session — gh#37026.
     // checkGate_CACHED_OR_BLOCKING returns immediately if disk already says
-    // true; only blocks on a cold/stale-false cache (awaits the same memoized
-    // initializeGrowthBook promise fired earlier). Also warms the
-    // isChannelsEnabled() check in the dev-channels dialog below.
-    if (getAllowedChannels().length > 0 || (devChannels?.length ?? 0) > 0) {
-      await checkGate_CACHED_OR_BLOCKING('tengu_harbor');
-    }
+    // Channels are disabled in external builds
     if (devChannels && devChannels.length > 0) {
       const [{
         isChannelsEnabled
