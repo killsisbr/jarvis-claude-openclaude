@@ -1,310 +1,292 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { SmartCache } from './smart-cache'
-import { clearCachedContextsForUser } from '../db/cached-contexts'
+import { describe, it, expect, beforeEach } from 'bun:test'
+import { SmartCache, createCachedContext, createPromptHash } from './smart-cache'
 
 describe('SmartCache', () => {
   let cache: SmartCache
-  const testUserIds = [
-    'user1',
-    'user2',
-    'user3',
-    'user4',
-    'user5',
-    'user6',
-    'user7',
-    'user8',
-    'user9',
-    'user-eviction-test',
-    'user-stats',
-    'user-clear-test',
-    'user-stats',
-  ]
+  const model = 'claude-opus'
+  const promptHash = 'hash-abc123'
 
   beforeEach(() => {
     cache = new SmartCache()
-    // Clean test users from previous runs
-    for (const userId of testUserIds) {
-      try {
-        clearCachedContextsForUser(userId)
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
   })
 
-  afterEach(() => {
-    cache.removeAllListeners()
-    // Clean test users after test
-    for (const userId of testUserIds) {
-      try {
-        clearCachedContextsForUser(userId)
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
-  })
+  describe('similarity calculation', () => {
+    it('returns high similarity for nearly identical messages', async () => {
+      const context = createCachedContext(
+        'user1',
+        model,
+        promptHash,
+        [{ role: 'user', content: 'How to build a Python server?' }],
+        'How to build a Python server?'
+      )
+      await cache.cacheContext(context)
 
-  describe('getCachedContext', () => {
-    test('returns null when no cached contexts exist', async () => {
-      const result = await cache.getCachedContext('user1', 'hello', 'model1', 'hash1')
-      expect(result).toBeNull()
-    })
-
-    test('returns cached context on high similarity (>0.75)', async () => {
-      // Setup: cache a context
-      await cache.cacheContext({
-        user_id: 'user1',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [
-          { role: 'user', content: 'How to build a Python server?' },
-          { role: 'assistant', content: 'Here is how...' },
-        ],
-        last_message: 'How to build a Python server?',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
-
-      // Test: similar query should hit cache
-      const result = await cache.getCachedContext('user1', 'How to build a Python server?', 'model1', 'hash1')
-
-      // Should be exact match or very close
-      expect(result).toBeDefined()
-      if (result) {
-        expect(result.similarity).toBeGreaterThan(0.5)
-      }
-    })
-
-    test('returns null on low similarity (<0.75)', async () => {
-      // Setup: cache a context
-      await cache.cacheContext({
-        user_id: 'user2',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [
-          { role: 'user', content: 'How to build a Python server?' },
-          { role: 'assistant', content: 'Here is how...' },
-        ],
-        last_message: 'How to build a Python server?',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
-
-      // Test: very different query should not hit cache
-      const result = await cache.getCachedContext(
-        'user2',
-        'What is the weather today?',
-        'model1',
-        'hash1'
+      const retrieved = await cache.getCachedContext(
+        'user1',
+        'How to build a Python server?',
+        model,
+        promptHash
       )
 
-      expect(result).toBeNull()
+      expect(retrieved).toBeDefined()
+      expect(retrieved?.id).toBe(context.id)
     })
 
-    test('filters by model', async () => {
-      // Setup: cache contexts for different models
-      await cache.cacheContext({
-        user_id: 'user3',
-        model: 'model-a',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'test' }],
-        last_message: 'test',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
+    it('returns context for similar messages above threshold', async () => {
+      const context = createCachedContext(
+        'user1',
+        model,
+        promptHash,
+        [],
+        'How to create a Python API server'
+      )
+      await cache.cacheContext(context)
 
-      // Test: query with different model should not match
-      const result = await cache.getCachedContext('user3', 'test', 'model-b', 'hash1')
+      const retrieved = await cache.getCachedContext(
+        'user1',
+        'How to build a Python server API',
+        model,
+        promptHash
+      )
 
-      expect(result).toBeNull()
+      expect(retrieved).toBeDefined()
     })
 
-    test('filters by system_prompt_hash', async () => {
-      // Setup: cache context with hash1
-      await cache.cacheContext({
-        user_id: 'user4',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'test' }],
-        last_message: 'test',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
+    it('returns null for dissimilar messages below threshold', async () => {
+      const context = createCachedContext(
+        'user1',
+        model,
+        promptHash,
+        [],
+        'How to make coffee'
+      )
+      await cache.cacheContext(context)
 
-      // Test: query with different hash should not match
-      const result = await cache.getCachedContext('user4', 'test', 'model1', 'hash2')
+      const retrieved = await cache.getCachedContext(
+        'user1',
+        'What is quantum physics',
+        model,
+        promptHash
+      )
 
-      expect(result).toBeNull()
-    })
-
-    test('increments hit_count on cache hit', async () => {
-      // Setup
-      await cache.cacheContext({
-        user_id: 'user5',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'How to learn Python?' }],
-        last_message: 'How to learn Python?',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
-
-      // First hit - should work with exact match
-      let hitCount = 0
-      cache.on('cache_hit', () => {
-        hitCount++
-      })
-
-      await cache.getCachedContext('user5', 'How to learn Python?', 'model1', 'hash1')
-      expect(hitCount).toBe(1)
-
-      // Second hit
-      await cache.getCachedContext('user5', 'How to learn Python?', 'model1', 'hash1')
-      expect(hitCount).toBe(2)
-    })
-
-    test('emits cache_hit event', async () => {
-      await cache.cacheContext({
-        user_id: 'user6',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'test' }],
-        last_message: 'test',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
-
-      let hitEmitted = false
-      cache.once('cache_hit', () => {
-        hitEmitted = true
-      })
-
-      await cache.getCachedContext('user6', 'test', 'model1', 'hash1')
-
-      expect(hitEmitted).toBe(true)
-    })
-
-    test('emits cache_miss event', async () => {
-      let missEmitted = false
-      cache.once('cache_miss', () => {
-        missEmitted = true
-      })
-
-      await cache.getCachedContext('user7', 'test', 'model1', 'hash1')
-
-      expect(missEmitted).toBe(true)
+      expect(retrieved).toBeNull()
     })
   })
 
-  describe('cacheContext', () => {
-    test('saves context to database', async () => {
-      const id = await cache.cacheContext({
-        user_id: 'user8',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'test' }],
-        last_message: 'test',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
+  describe('hit counting', () => {
+    it('increments hit count on cache hit', async () => {
+      const context = createCachedContext(
+        'user1',
+        model,
+        promptHash,
+        [],
+        'test message'
+      )
+      await cache.cacheContext(context)
 
-      expect(id).toBeDefined()
-      expect(typeof id).toBe('string')
-      expect(id.startsWith('cache-')).toBe(true)
+      expect(context.hitCount).toBe(1)
+
+      const retrieved1 = await cache.getCachedContext(
+        'user1',
+        'test message',
+        model,
+        promptHash
+      )
+      expect(retrieved1?.hitCount).toBe(2)
+
+      const retrieved2 = await cache.getCachedContext(
+        'user1',
+        'test message',
+        model,
+        promptHash
+      )
+      expect(retrieved2?.hitCount).toBe(3)
     })
 
-    test('emits cached event', async () => {
-      let cachedEmitted = false
-      cache.once('cached', () => {
-        cachedEmitted = true
-      })
+    it('updates lastUsedAt timestamp on hit', async () => {
+      const context = createCachedContext(
+        'user1',
+        model,
+        promptHash,
+        [],
+        'test'
+      )
+      const originalTime = context.lastUsedAt
+      await cache.cacheContext(context)
 
-      await cache.cacheContext({
-        user_id: 'user9',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'test' }],
-        last_message: 'test',
-        hit_count: 0,
-        last_used_at: Date.now(),
-      })
+      await new Promise(r => setTimeout(r, 10))
 
-      expect(cachedEmitted).toBe(true)
+      const retrieved = await cache.getCachedContext(
+        'user1',
+        'test',
+        model,
+        promptHash
+      )
+
+      expect(retrieved?.lastUsedAt).toBeGreaterThan(originalTime)
     })
+  })
 
-    test('enforces max contexts per user (eviction policy)', async () => {
-      const userId = 'user-eviction-test'
-
-      // Add 11 contexts (max is 10)
-      for (let i = 0; i < 11; i++) {
-        await cache.cacheContext({
-          user_id: userId,
-          model: 'model1',
-          system_prompt_hash: 'hash1',
-          messages: [{ role: 'user', content: `message ${i}` }],
-          last_message: `message ${i}`,
-          hit_count: i, // Different hit counts for predictable eviction
-          last_used_at: Date.now() + i * 1000, // Different timestamps
-        })
+  describe('eviction policy', () => {
+    it('keeps max 10 contexts per user', async () => {
+      for (let i = 0; i < 15; i++) {
+        const ctx = createCachedContext(
+          'user1',
+          model,
+          promptHash,
+          [],
+          `message ${i}`
+        )
+        await cache.cacheContext(ctx)
       }
 
-      // Get stats to verify eviction happened
       const stats = cache.getStats()
-      expect(stats.total).toBeLessThanOrEqual(10)
-
-      // Cleanup
-      clearCachedContextsForUser(userId)
+      expect(stats.totalContexts).toBeLessThanOrEqual(10)
     })
-  })
 
-  describe('getStats', () => {
-    test('returns cache statistics', async () => {
-      await cache.cacheContext({
-        user_id: 'user-stats',
-        model: 'model1',
-        system_prompt_hash: 'hash1',
-        messages: [{ role: 'user', content: 'test' }],
-        last_message: 'test',
-        hit_count: 5,
-        last_used_at: Date.now(),
+    it('evicts oldest/least-used contexts', async () => {
+      for (let i = 0; i < 12; i++) {
+        const ctx = createCachedContext(
+          'user1',
+          model,
+          promptHash,
+          [],
+          `message ${i}`
+        )
+        await cache.cacheContext(ctx)
+      }
+
+      const stats = cache.getStats()
+      expect(stats.totalContexts).toBe(10)
+    })
+
+    it('emits eviction event when limit reached', async () => {
+      let evictionFired = false
+      cache.on('cache_evicted', () => {
+        evictionFired = true
       })
 
-      const stats = cache.getStats()
+      for (let i = 0; i < 12; i++) {
+        const ctx = createCachedContext(
+          'user1',
+          model,
+          promptHash,
+          [],
+          `message ${i}`
+        )
+        await cache.cacheContext(ctx)
+      }
 
-      expect(stats.total).toBeGreaterThan(0)
-      expect(typeof stats.avg_hits).toBe('number')
-      expect(stats.by_user).toBeDefined()
-
-      // Cleanup
-      clearCachedContextsForUser('user-stats')
+      expect(evictionFired).toBe(true)
     })
   })
 
-  describe('clearUserCache', () => {
-    test('clears all contexts for a user', async () => {
-      const userId = 'user-clear-test'
+  describe('filtering', () => {
+    it('filters by model', async () => {
+      const ctx1 = createCachedContext('user1', 'claude-opus', promptHash, [], 'test')
+      const ctx2 = createCachedContext('user1', 'claude-sonnet', promptHash, [], 'test')
 
-      // Add 3 contexts
+      await cache.cacheContext(ctx1)
+      await cache.cacheContext(ctx2)
+
+      const retrieved = await cache.getCachedContext('user1', 'test', 'claude-opus', promptHash)
+      expect(retrieved?.model).toBe('claude-opus')
+    })
+
+    it('filters by systemPromptHash', async () => {
+      const hash1 = 'hash-111'
+      const hash2 = 'hash-222'
+
+      const ctx1 = createCachedContext('user1', model, hash1, [], 'test')
+      const ctx2 = createCachedContext('user1', model, hash2, [], 'test')
+
+      await cache.cacheContext(ctx1)
+      await cache.cacheContext(ctx2)
+
+      const retrieved = await cache.getCachedContext('user1', 'test', model, hash1)
+      expect(retrieved?.systemPromptHash).toBe(hash1)
+    })
+  })
+
+  describe('events', () => {
+    it('emits cache_hit event', async () => {
+      let hitEvent: any = null
+      cache.on('cache_hit', (e) => {
+        hitEvent = e
+      })
+
+      const ctx = createCachedContext('user1', model, promptHash, [], 'test')
+      await cache.cacheContext(ctx)
+      await cache.getCachedContext('user1', 'test', model, promptHash)
+
+      expect(hitEvent).toBeDefined()
+      expect(hitEvent.userId).toBe('user1')
+    })
+
+    it('emits cache_miss event', async () => {
+      let missEvent: any = null
+      cache.on('cache_miss', (e) => {
+        missEvent = e
+      })
+
+      await cache.getCachedContext('user1', 'test', model, promptHash)
+
+      expect(missEvent).toBeDefined()
+      expect(missEvent.userId).toBe('user1')
+    })
+  })
+
+  describe('statistics', () => {
+    it('returns accurate cache stats', async () => {
+      for (let i = 0; i < 5; i++) {
+        const ctx = createCachedContext('user1', model, promptHash, [], `msg ${i}`)
+        await cache.cacheContext(ctx)
+      }
+
+      const stats = cache.getStats()
+      expect(stats.totalUsers).toBe(1)
+      expect(stats.totalContexts).toBe(5)
+    })
+  })
+
+  describe('management', () => {
+    it('clears cache for specific user', async () => {
+      const ctx = createCachedContext('user1', model, promptHash, [], 'test')
+      await cache.cacheContext(ctx)
+
+      cache.clearUser('user1')
+
+      const stats = cache.getStats()
+      expect(stats.totalContexts).toBe(0)
+    })
+
+    it('clears all cache', async () => {
       for (let i = 0; i < 3; i++) {
-        await cache.cacheContext({
-          user_id: userId,
-          model: 'model1',
-          system_prompt_hash: 'hash1',
-          messages: [{ role: 'user', content: `msg ${i}` }],
-          last_message: `msg ${i}`,
-          hit_count: 0,
-          last_used_at: Date.now(),
-        })
+        const ctx = createCachedContext(`user${i}`, model, promptHash, [], 'test')
+        await cache.cacheContext(ctx)
       }
 
-      // Clear
-      const deleted = cache.clearUserCache(userId)
+      cache.clearAll()
 
-      expect(deleted).toBe(3)
+      const stats = cache.getStats()
+      expect(stats.totalContexts).toBe(0)
+    })
 
-      // Verify no contexts remain
-      const result = await cache.getCachedContext(userId, 'test', 'model1', 'hash1')
-      expect(result).toBeNull()
+    it('exports and imports contexts', async () => {
+      const ctx1 = createCachedContext('user1', model, promptHash, [], 'test1')
+      const ctx2 = createCachedContext('user2', model, promptHash, [], 'test2')
+
+      await cache.cacheContext(ctx1)
+      await cache.cacheContext(ctx2)
+
+      const exported = cache.exportContexts()
+      expect(exported).toHaveLength(2)
+
+      const cache2 = new SmartCache()
+      cache2.importContexts(exported)
+
+      const stats = cache2.getStats()
+      expect(stats.totalContexts).toBe(2)
     })
   })
 })
