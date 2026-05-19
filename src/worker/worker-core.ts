@@ -35,6 +35,7 @@ import {
   registerLearningFromResponse,
 } from './learning-context.ts'
 import { initializeIndex } from './vectordb/orama-store.ts'
+import { extractUserPreferences, formatUserPreferences } from './services/preference-extractor.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -257,14 +258,22 @@ export class JarvisWorker {
       'Seja conciso, preciso e direto. Responda em português quando o usuário escrever em português.',
     ].join(' ')
 
-    // Inject relevant learnings if userId provided
+    // Inject relevant learnings and preferences if userId provided
     if (userId) {
       const userMessage = history.length > 0 ? history[history.length - 1].content : ''
-      const learnings = await extractRelevantLearnings(userId, userMessage)
 
+      // Extract learnings
+      const learnings = await extractRelevantLearnings(userId, userMessage)
       if (learnings.length > 0) {
         const learningContext = formatLearningsContext(learnings)
         systemPrompt += learningContext
+      }
+
+      // Extract and inject preferences (Proactive Learning)
+      const prefs = await extractUserPreferences(userId, userMessage)
+      if (prefs.length > 0) {
+        const prefsContext = formatUserPreferences(prefs)
+        systemPrompt += prefsContext
       }
     }
 

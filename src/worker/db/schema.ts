@@ -167,6 +167,22 @@ function initializeSchema(): void {
   database.run(`CREATE INDEX IF NOT EXISTS idx_action_user ON action_history(userId)`);
   database.run(`CREATE INDEX IF NOT EXISTS idx_action_status ON action_history(status)`);
 
+  // User preferences (Proactive Learning)
+  database.run(`CREATE TABLE IF NOT EXISTS user_preferences (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    value TEXT NOT NULL,
+    confidence REAL DEFAULT 0.5,
+    observed_count INTEGER DEFAULT 1,
+    last_updated_at INTEGER NOT NULL,
+    UNIQUE(user_id, category, value)
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_user_prefs_user_id ON user_preferences(user_id)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_user_prefs_category ON user_preferences(category)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_user_prefs_confidence ON user_preferences(confidence DESC)`);
+
   console.log("[schema] ✓ Database schema initialized");
 }
 
