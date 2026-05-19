@@ -1,15 +1,26 @@
+/**
+ * User Preferences Management
+ *
+ * Tracks user preferences (language, framework, style, etc) observed from
+ * interactions and uses them to enhance prompts proactively.
+ */
+
 import { getDatabase } from './schema'
 
 export interface UserPreference {
   id: string
-  user_id: string
+  userId: string
   category: string
   value: string
   confidence: number
-  observed_count: number
-  last_updated_at: number
+  observedCount: number
+  lastUpdatedAt: number
 }
 
+/**
+ * Set or update a user preference
+ * If preference exists, increments observed_count and updates confidence
+ */
 export function setUserPreference(
   userId: string,
   category: string,
@@ -17,101 +28,136 @@ export function setUserPreference(
   confidence: number = 0.5
 ): void {
   const db = getDatabase()
-  const id = `pref-${userId}-${category}-${value.replace(/\s+/g, '-')}`
-  const now = Date.now()
-
-  const existing = db
-    .prepare('SELECT * FROM user_preferences WHERE user_id = ? AND category = ? AND value = ?')
-    .get(userId, category, value) as UserPreference | undefined
+  const existing = db.prepare(`
+    SELECT id, observed_count, confidence
+    FROM user_preferences
+    WHERE user_id = ? AND category = ? AND value = ?
+  `).get(userId, category, value) as any
 
   if (existing) {
-    // Atualizar: aumentar confidence e observed_count
-    const newConfidence = Math.min(1, (existing.confidence + confidence) / 2)
-    db.prepare(
-      'UPDATE user_preferences SET confidence = ?, observed_count = observed_count + 1, last_updated_at = ? WHERE id = ?'
-    ).run(newConfidence, now, existing.id)
+    // Update: increment count, boost confidence
+    const newConfidence = Math.min(
+      1.0,
+      (existing.confidence + confidence) / 2
+    )
+    const newCount = existing.observed_count + 1
+
+    db.prepare(`
+      UPDATE user_preferences
+      SET confidence = ?, observed_count = ?, last_updated_at = ?
+      WHERE id = ?
+    `).run(newConfidence, newCount, Date.now(), existing.id)
   } else {
-    // Inserir novo
-    db.prepare(
-      'INSERT INTO user_preferences (id, user_id, category, value, confidence, observed_count, last_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, userId, category, value, confidence, 1, now)
+    // Insert: new preference
+    const id = `pref-${userId}-${category}-${Date.now()}`
+    db.prepare(`
+      INSERT INTO user_preferences
+      (id, user_id, category, value, confidence, observed_count, last_updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, userId, category, value, confidence, 1, Date.now())
   }
 }
 
-export function getUserPreferences(userId: string, category?: string): UserPreference[] {
+/**
+ * Get user preferences (optionally filtered by category)
+ */
+export function getUserPreferences(
+  userId: string,
+  category?: string
+): UserPreference[] {
   const db = getDatabase()
 
-  let query = 'SELECT * FROM user_preferences WHERE user_id = ?'
+  let query = `
+    SELECT id, user_id, category, value, confidence, observed_count, last_updated_at
+    FROM user_preferences
+    WHERE user_id = ?
+  `
   const params: any[] = [userId]
 
   if (category) {
-    query += ' AND category = ?'
+    query += ` AND category = ?`
     params.push(category)
   }
 
-  query += ' ORDER BY confidence DESC, observed_count DESC'
+  query += ` ORDER BY confidence DESC`
 
   return db.prepare(query).all(...params) as UserPreference[]
 }
 
-export function getHighConfidencePreferences(userId: string, minConfidence: number = 0.7): UserPreference[] {
+/**
+ * Get top preferences for a category
+ */
+export function getTopPreferences(
+  userId: string,
+  category: string,
+  limit: number = 5
+): UserPreference[] {
   const db = getDatabase()
-  return db
-    .prepare(
-      'SELECT * FROM user_preferences WHERE user_id = ? AND confidence >= ? ORDER BY confidence DESC, observed_count DESC'
-    )
-    .all(userId, minConfidence) as UserPreference[]
+  return db.prepare(`
+    SELECT id, user_id, category, value, confidence, observed_count, last_updated_at
+    FROM user_preferences
+    WHERE user_id = ? AND category = ?
+    ORDER BY confidence DESC
+    LIMIT ?
+  `).all(userId, category, limit) as UserPreference[]
 }
 
+/**
+ * Record a preference observation (increment count + boost confidence)
+ * Used when preference is explicitly confirmed by user
+ */
 export function recordPreferenceObservation(
   userId: string,
   category: string,
   value: string,
   confidenceBoost: number = 0.1
 ): void {
-  const existing = getUserPreferences(userId, category).find((p) => p.value === value)
+  const db = getDatabase()
+  const existing = db.prepare(`
+    SELECT id, confidence, observed_count
+    FROM user_preferences
+    WHERE user_id = ? AND category = ? AND value = ?
+  `).get(userId, category, value) as any
 
   if (existing) {
-    const db = getDatabase()
-    const newConfidence = Math.min(1, existing.confidence + confidenceBoost)
-    db.prepare('UPDATE user_preferences SET confidence = ?, observed_count = observed_count + 1, last_updated_at = ? WHERE id = ?').run(
-      newConfidence,
-      Date.now(),
-      existing.id
+    const newConfidence = Math.min(
+      1.0,
+      existing.confidence + confidenceBoost
     )
+    const newCount = existing.observed_count + 1
+
+    db.prepare(`
+      UPDATE user_preferences
+      SET confidence = ?, observed_count = ?, last_updated_at = ?
+      WHERE id = ?
+    `).run(newConfidence, newCount, Date.now(), existing.id)
   } else {
-    setUserPreference(userId, category, value, 0.6)
+    // First observation
+    setUserPreference(userId, category, value, 0.5)
   }
 }
 
-export function deletePreference(id: string): void {
+/**
+ * Clear preferences for a user (for privacy/reset)
+ */
+export function clearUserPreferences(userId: string): number {
   const db = getDatabase()
-  db.prepare('DELETE FROM user_preferences WHERE id = ?').run(id)
+  const result = db.prepare(`
+    DELETE FROM user_preferences
+    WHERE user_id = ?
+  `).run(userId)
+
+  return result.changes
 }
 
-export function clearUserPreferences(userId: string): void {
+/**
+ * Get all preferences for auditing/debugging
+ */
+export function getAllUserPreferences(): UserPreference[] {
   const db = getDatabase()
-  db.prepare('DELETE FROM user_preferences WHERE user_id = ?').run(userId)
-}
-
-export function getPreferenceStats(userId: string): {
-  total: number
-  byCategory: Record<string, number>
-  avgConfidence: number
-} {
-  const prefs = getUserPreferences(userId)
-
-  const byCategory: Record<string, number> = {}
-  let totalConfidence = 0
-
-  for (const pref of prefs) {
-    byCategory[pref.category] = (byCategory[pref.category] || 0) + 1
-    totalConfidence += pref.confidence
-  }
-
-  return {
-    total: prefs.length,
-    byCategory,
-    avgConfidence: prefs.length > 0 ? totalConfidence / prefs.length : 0,
-  }
+  return db.prepare(`
+    SELECT id, user_id, category, value, confidence, observed_count, last_updated_at
+    FROM user_preferences
+    ORDER BY user_id, category, confidence DESC
+  `).all() as UserPreference[]
 }

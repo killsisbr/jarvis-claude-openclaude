@@ -1,128 +1,112 @@
-import { getUserPreferences, recordPreferenceObservation } from '../db/preferences'
+/**
+ * Preference Extractor
+ *
+ * Analyzes user messages to detect and extract preferences
+ * (language, framework, style, etc)
+ */
 
-export interface FormattedPreference {
+import { setUserPreference, getTopPreferences } from '../db/preferences'
+
+export interface ExtractedPreference {
   category: string
   value: string
   confidence: number
+  reason: string
 }
 
-// Padrões de extração de preferências do texto (simplificado para robustez)
-const LANGUAGE_VALUES = ['python', 'javascript', 'typescript', 'go', 'rust', 'java', 'c++', 'c#', 'php', 'ruby', 'scala', 'kotlin']
-const FRAMEWORK_VALUES = ['react', 'vue', 'svelte', 'angular', 'nextjs', 'next.js', 'nuxt', 'django', 'flask', 'fastapi', 'spring', 'express', 'nestjs', 'nest.js']
-const STYLE_VALUES = ['concise', 'brief', 'detailed', 'thorough', 'verbose', 'terse', 'minimal', 'short', 'long']
-const TONE_VALUES = ['casual', 'formal', 'technical', 'friendly', 'professional']
-const DATABASE_VALUES = ['postgres', 'postgresql', 'mysql', 'mongodb', 'redis', 'sqlite', 'cassandra', 'dynamodb', 'firestore']
-
-function createPattern(category: string, values: string[]): RegExp {
-  const pattern = values.join('|').replace(/\+/g, '\\+').replace(/#/g, '\\#')
-  return new RegExp(`(${pattern})`, 'gi')
+const PREFERENCE_PATTERNS: Record<string, Array<{ pattern: RegExp; category: string; value: string; confidence: number }>> = {
+  language: [
+    { pattern: /\b(python|javascript|typescript|rust|go|java|c\+\+|csharp|c#|php|ruby|kotlin)\b/i, category: 'language', value: '', confidence: 0.8 },
+    { pattern: /i\s+(prefer|like|use)\s+(python|js|ts|rust|go)\b/i, category: 'language', value: '', confidence: 0.9 }
+  ],
+  framework: [
+    { pattern: /\b(react|vue|angular|svelte|next\.?js|nuxt|django|fastapi|spring|rails|express)\b/i, category: 'framework', value: '', confidence: 0.8 },
+    { pattern: /i\s+(prefer|like|use)\s+(react|vue|django)\b/i, category: 'framework', value: '', confidence: 0.9 }
+  ],
+  style: [
+    { pattern: /\b(concise|detailed|verbose|brief|short|long)\s+(answers?|explanations?|code)/i, category: 'style', value: '', confidence: 0.7 },
+    { pattern: /i\s+(prefer|like)\s+(concise|detailed|verbose|brief|short)\s+(answers?|explanations?)/i, category: 'style', value: '', confidence: 0.9 }
+  ],
+  approach: [
+    { pattern: /\b(functional|object-?oriented|oop|imperative|declarative)\s+(programming|approach)?/i, category: 'approach', value: '', confidence: 0.7 },
+    { pattern: /i\s+(prefer|like)\s+(functional|oop|declarative)\s+(programming|approach)?/i, category: 'approach', value: '', confidence: 0.9 }
+  ],
+  testing: [
+    { pattern: /\b(jest|mocha|pytest|unittest|vitest|rspec)\b/i, category: 'testing', value: '', confidence: 0.8 },
+    { pattern: /\b(tdd|bdd|test-?driven|behavior-?driven)\b/i, category: 'testing', value: '', confidence: 0.8 }
+  ]
 }
 
-const PREFERENCE_PATTERNS = {
-  language: createPattern('language', LANGUAGE_VALUES),
-  framework: createPattern('framework', FRAMEWORK_VALUES),
-  style: createPattern('style', STYLE_VALUES),
-  tone: createPattern('tone', TONE_VALUES),
-  database: createPattern('database', DATABASE_VALUES),
-}
+/**
+ * Extract preferences from user message
+ */
+export function extractUserPreferences(userId: string, message: string): ExtractedPreference[] {
+  const preferences: ExtractedPreference[] = []
+  const lowerMessage = message.toLowerCase()
 
-export async function extractUserPreferences(userId: string, userMessage: string): Promise<FormattedPreference[]> {
-  const extracted: Map<string, { value: string; confidence: number; category: string }> = new Map()
+  // Check each pattern category
+  for (const [, patterns] of Object.entries(PREFERENCE_PATTERNS)) {
+    for (const pattern of patterns) {
+      const match = lowerMessage.match(pattern.pattern)
+      if (match) {
+        const value = match[1] || pattern.value
+        if (value) {
+          const pref: ExtractedPreference = {
+            category: pattern.category,
+            value: value.toLowerCase(),
+            confidence: pattern.confidence,
+            reason: `Detected from message: "${match[0]}"`
+          }
 
-  // Procurar padrões em toda a mensagem
-  const lowerMessage = userMessage.toLowerCase()
-
-  for (const [categoryKey, regex] of Object.entries(PREFERENCE_PATTERNS)) {
-    // Reset regex state
-    regex.lastIndex = 0
-
-    let match
-    while ((match = regex.exec(lowerMessage)) !== null) {
-      // Extrair o valor (primeiro capture group é o valor extraído)
-      const value = match[1]?.trim()
-
-      if (value && value.length > 2) {
-        const key = `${categoryKey}-${value}`
-
-        if (!extracted.has(key)) {
-          extracted.set(key, {
-            value: value.charAt(0).toUpperCase() + value.slice(1),
-            confidence: 0.75,
-            category: categoryKey,
-          })
+          // Avoid duplicates
+          if (!preferences.some(p => p.category === pref.category && p.value === pref.value)) {
+            preferences.push(pref)
+            setUserPreference(userId, pref.category, pref.value, pref.confidence)
+          }
         }
       }
-    }
-  }
-
-  // Converter para array e registrar no DB
-  const preferences: FormattedPreference[] = []
-
-  for (const pref of extracted.values()) {
-    preferences.push({
-      category: pref.category,
-      value: pref.value,
-      confidence: pref.confidence,
-    })
-
-    // Registrar no DB (incrementa confidence se já existe)
-    try {
-      recordPreferenceObservation(userId, pref.category, pref.value, 0.15)
-    } catch (err) {
-      // Silenciar erros de DB
-      console.warn('[preference-extractor] DB error:', err instanceof Error ? err.message : String(err))
     }
   }
 
   return preferences
 }
 
-export function formatUserPreferences(preferences: FormattedPreference[]): string {
-  if (preferences.length === 0) {
+/**
+ * Format preferences for prompt injection
+ */
+export function formatUserPreferences(userId: string): string {
+  // Get top preferences for each category
+  const categories = ['language', 'framework', 'style', 'approach', 'testing']
+  const sections: string[] = []
+
+  for (const category of categories) {
+    const topPrefs = getTopPreferences(userId, category, 3)
+    if (topPrefs.length > 0) {
+      const values = topPrefs
+        .map(p => `${p.value} (confidence: ${(p.confidence * 100).toFixed(0)}%)`)
+        .join(', ')
+
+      sections.push(`- **${category}**: ${values}`)
+    }
+  }
+
+  if (sections.length === 0) {
     return ''
   }
 
-  // Agrupar por categoria
-  const byCategory: Record<string, string[]> = {}
+  return `
+## User Preferences (Observed)
 
-  for (const pref of preferences) {
-    if (!byCategory[pref.category]) {
-      byCategory[pref.category] = []
-    }
-    byCategory[pref.category].push(pref.value)
-  }
+${sections.join('\n')}
 
-  // Formatar para injeção
-  const lines: string[] = ['## User Preferences:']
-
-  for (const [category, values] of Object.entries(byCategory)) {
-    const valueStr = values.join(', ')
-    lines.push(`- **${category}**: ${valueStr}`)
-  }
-
-  return '\n' + lines.join('\n')
+Use these preferences to tailor responses when applicable, but always prioritize accuracy and best practices.
+`
 }
 
-export async function injectProactiveContext(
-  userId: string,
-  baseSystemPrompt: string
-): Promise<string> {
-  // Recuperar preferências com alta confiança
-  const prefs = getUserPreferences(userId)
-    .filter((p) => p.confidence >= 0.6)
-    .slice(0, 8) // Limitar a 8 preferências para não inchar o prompt
-
-  if (prefs.length === 0) {
-    return baseSystemPrompt
-  }
-
-  const formatted = formatUserPreferences(
-    prefs.map((p) => ({
-      category: p.category,
-      value: p.value,
-      confidence: p.confidence,
-    }))
-  )
-
-  return baseSystemPrompt + formatted
+/**
+ * Get preference injection context for a user
+ * Returns empty string if no preferences, or formatted preferences section
+ */
+export function getPreferenceContext(userId: string): string {
+  return formatUserPreferences(userId)
 }

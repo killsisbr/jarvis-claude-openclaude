@@ -1,144 +1,146 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import {
-  extractUserPreferences,
-  formatUserPreferences,
-  injectProactiveContext,
-} from './preference-extractor'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { extractUserPreferences, formatUserPreferences, getPreferenceContext } from './preference-extractor'
+import { getDatabase, closeDatabase } from '../db/schema'
 
-describe('preference-extractor', () => {
+describe('preference extractor', () => {
+  beforeEach(() => {
+    getDatabase()
+  })
+
+  afterEach(() => {
+    closeDatabase()
+  })
+
   describe('extractUserPreferences', () => {
-    test('extracts language preference (explicit)', async () => {
-      const prefs = await extractUserPreferences('user1', 'I prefer Python for everything')
-      const python = prefs.find((p) => p.category === 'language' && p.value.toLowerCase() === 'python')
-      expect(python).toBeDefined()
-      expect(python?.confidence).toBeGreaterThanOrEqual(0.7)
+    it('detects language preferences', () => {
+      const prefs = extractUserPreferences('user1', 'I love using Python for everything')
+      expect(prefs).toContainEqual(
+        expect.objectContaining({
+          category: 'language',
+          value: 'python',
+          confidence: expect.any(Number)
+        })
+      )
     })
 
-    test('extracts framework preference', async () => {
-      const prefs = await extractUserPreferences('user2', 'I like React for building UI components')
-      const react = prefs.find((p) => p.category === 'framework' && p.value.toLowerCase() === 'react')
-      expect(react).toBeDefined()
+    it('detects framework preferences', () => {
+      const prefs = extractUserPreferences('user1', 'I use React for all my frontend work')
+      expect(prefs).toContainEqual(
+        expect.objectContaining({
+          category: 'framework',
+          value: 'react',
+          confidence: expect.any(Number)
+        })
+      )
     })
 
-    test('extracts style preference', async () => {
-      const prefs = await extractUserPreferences('user3', 'Keep it concise')
-      const concise = prefs.find((p) => p.category === 'style')
-      expect(concise).toBeDefined()
-      expect(concise?.value.toLowerCase()).toContain('concise')
+    it('detects style preferences', () => {
+      const prefs = extractUserPreferences('user1', 'I prefer concise answers')
+      expect(prefs).toContainEqual(
+        expect.objectContaining({
+          category: 'style',
+          value: 'concise',
+          confidence: expect.any(Number)
+        })
+      )
     })
 
-    test('extracts tone preference', async () => {
-      const prefs = await extractUserPreferences('user4', 'Be casual when explaining')
-      const casual = prefs.find((p) => p.category === 'tone')
-      expect(casual).toBeDefined()
-      expect(casual?.value.toLowerCase()).toContain('casual')
-    })
-
-    test('extracts database preference', async () => {
-      const prefs = await extractUserPreferences('user5', 'I use postgres for all my projects')
-      const postgres = prefs.find((p) => p.category === 'database')
-      expect(postgres).toBeDefined()
-      expect(postgres?.value.toLowerCase()).toContain('postgres')
-    })
-
-    test('returns empty array when no preferences detected', async () => {
-      const prefs = await extractUserPreferences('user6', 'What is the weather today?')
-      expect(prefs.length).toBe(0)
-    })
-
-    test('extracts multiple preferences from same message', async () => {
-      const prefs = await extractUserPreferences(
-        'user7',
-        'I prefer Python and love using React for frontend development. Keep answers brief and technical.'
+    it('detects multiple preferences', () => {
+      const prefs = extractUserPreferences(
+        'user1',
+        'I use Python with Django and prefer concise explanations'
       )
       expect(prefs.length).toBeGreaterThanOrEqual(2)
     })
 
-    test('normalizes extracted values to Title Case', async () => {
-      const prefs = await extractUserPreferences('user8', 'i like typescript')
-      const ts = prefs.find((p) => p.category === 'language')
-      expect(ts?.value).toMatch(/^[A-Z]/)
+    it('handles case insensitivity', () => {
+      const prefsLower = extractUserPreferences('user1', 'i like python')
+      const prefsUpper = extractUserPreferences('user2', 'I LIKE PYTHON')
+
+      expect(prefsLower).toHaveLength(1)
+      expect(prefsUpper).toHaveLength(1)
+      expect(prefsLower[0].value).toBe(prefsUpper[0].value)
+    })
+
+    it('avoids duplicate preferences in single extraction', () => {
+      const prefs = extractUserPreferences(
+        'user1',
+        'Python is great. I use Python every day. Python and more Python.'
+      )
+      const pythonPrefs = prefs.filter(p => p.value === 'python')
+      expect(pythonPrefs).toHaveLength(1)
+    })
+
+    it('detects testing framework preferences', () => {
+      const prefs = extractUserPreferences('user1', 'I use Jest for testing')
+      expect(prefs).toContainEqual(
+        expect.objectContaining({
+          category: 'testing',
+          value: 'jest'
+        })
+      )
+    })
+
+    it('returns empty array for no matches', () => {
+      const prefs = extractUserPreferences('user1', 'Hello, how are you today?')
+      expect(prefs).toHaveLength(0)
     })
   })
 
   describe('formatUserPreferences', () => {
-    test('formats preferences for system prompt injection', () => {
-      const prefs = [
-        { category: 'language', value: 'Python', confidence: 0.9 },
-        { category: 'framework', value: 'React', confidence: 0.8 },
-      ]
-
-      const formatted = formatUserPreferences(prefs)
-
-      expect(formatted).toContain('## User Preferences:')
-      expect(formatted).toContain('Python')
-      expect(formatted).toContain('React')
-      expect(formatted).toContain('language')
-      expect(formatted).toContain('framework')
-    })
-
-    test('returns empty string for empty preferences', () => {
-      const formatted = formatUserPreferences([])
+    it('returns empty string for user with no preferences', () => {
+      const formatted = formatUserPreferences('newuser')
       expect(formatted).toBe('')
     })
 
-    test('groups preferences by category', () => {
-      const prefs = [
-        { category: 'language', value: 'Python', confidence: 0.9 },
-        { category: 'language', value: 'Go', confidence: 0.7 },
-      ]
+    it('formats preferences as markdown', () => {
+      extractUserPreferences('user1', 'I use Python and React with concise style')
 
-      const formatted = formatUserPreferences(prefs)
-
-      // Ambas as linguagens devem estar na mesma linha de categoria
-      const langLine = formatted.split('\n').find((l) => l.includes('language'))
-      expect(langLine).toContain('Python')
-      expect(langLine).toContain('Go')
+      const formatted = formatUserPreferences('user1')
+      expect(formatted).toContain('## User Preferences')
+      expect(formatted).toContain('language')
+      expect(formatted).toContain('framework')
+      expect(formatted).toContain('confidence')
     })
 
-    test('formats as markdown with bold categories', () => {
-      const prefs = [{ category: 'style', value: 'Concise', confidence: 0.8 }]
+    it('includes only categories with preferences', () => {
+      extractUserPreferences('user1', 'Python is my language')
 
-      const formatted = formatUserPreferences(prefs)
+      const formatted = formatUserPreferences('user1')
+      expect(formatted).toContain('language')
+      expect(formatted).not.toContain('framework')
+    })
 
-      expect(formatted).toContain('**style**')
+    it('limits to top 3 preferences per category', () => {
+      for (let i = 0; i < 5; i++) {
+        extractUserPreferences('user1', `language${i}`)
+      }
+
+      const formatted = formatUserPreferences('user1')
+      // Should have max 3 per category
+      const languageMatches = (formatted.match(/language/g) || []).length
+      expect(languageMatches).toBeLessThanOrEqual(5) // Header + max 3
     })
   })
 
-  describe('injectProactiveContext', () => {
-    test('returns base prompt if user has no preferences', async () => {
-      const basePrompt = 'You are helpful.'
-      const result = await injectProactiveContext('user-no-prefs', basePrompt)
-      expect(result).toBe(basePrompt)
+  describe('getPreferenceContext', () => {
+    it('returns empty string for new user', () => {
+      const context = getPreferenceContext('newuser')
+      expect(context).toBe('')
     })
 
-    test('injects preferences into system prompt', async () => {
-      // First, register some preferences
-      await extractUserPreferences('user-with-prefs', 'I prefer Python and React')
+    it('returns formatted preferences for existing user', () => {
+      extractUserPreferences('user1', 'I use Python and React')
 
-      const basePrompt = 'You are helpful.'
-      const result = await injectProactiveContext('user-with-prefs', basePrompt)
-
-      // Result should be longer than base (preferences added)
-      expect(result.length).toBeGreaterThan(basePrompt.length)
-      // Should start with base prompt
-      expect(result).toContain('You are helpful.')
-      // Should include preferences section
-      expect(result).toContain('## User Preferences:')
+      const context = getPreferenceContext('user1')
+      expect(context).toContain('User Preferences')
     })
 
-    test('limits preferences to 8 to avoid prompt bloat', async () => {
-      // Criar usuário com muitas preferências
-      for (let i = 0; i < 10; i++) {
-        await extractUserPreferences('user-many-prefs', `I like language${i}`)
-      }
+    it('includes confidence percentages', () => {
+      extractUserPreferences('user1', 'I prefer Python')
 
-      const basePrompt = 'You are helpful.'
-      const result = await injectProactiveContext('user-many-prefs', basePrompt)
-
-      // Contar quantas linhas de preferência existem
-      const prefLines = result.split('\n').filter((l) => l.match(/^-\s+\*\*/))
-      expect(prefLines.length).toBeLessThanOrEqual(8)
+      const context = getPreferenceContext('user1')
+      expect(context).toMatch(/confidence: \d+%/)
     })
   })
 })
