@@ -374,7 +374,11 @@ Experiência: "Claude Code é excelente!"
 **Resultado:**
 - Phase 2: 18 gates removidas → -35% para -15% degradação
 - Phase 3.1-3.2: 24 gates removidas → -15% para -5% degradação
-- Phase 3.3: 7 gates removidas (3 build-time + 4 default-false) → -5% para ~-2% degradação
+- Phase 3.3-3.5: 10 gates removidas (3 build-time + 4 default-false + 3 simplificações)
+  - tengu_ccr_bridge, tengu_bridge_repl_v2, tengu_cobalt_harbor (build-time)
+  - tengu_ccr_mirror, tengu_harbor, tengu_harbor_permissions, tengu_jade_anvil_4 (default=false)
+  - tengu_bridge_repl_v2_cse_shim_enabled, tengu_dunwich_bell, isNewInitEnabled cleanup
+- **Total Phase 3: 35 gates removidas** → -5% para -1.5% degradação ✅
 - Goal: Phase 4: reach ~0% degradação (feature parity)
 
 ---
