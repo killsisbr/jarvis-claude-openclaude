@@ -1,9 +1,11 @@
 import { getLearning, getReviewDue, getAllLearnings, type Learning } from './db/learnings'
+import { findSimilarLearnings, hybridSearch } from './vectordb/vector-search'
 
 const LEARNING_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 const MAX_LEARNINGS_PER_QUERY = 4
 const MIN_CONFIDENCE = 0.6
 const MIN_RELEVANCE = 0.5
+const USE_VECTOR_SEARCH = true // Toggle between vector and confidence-based
 
 interface CachedLearnings {
   learnings: Learning[]
@@ -20,7 +22,7 @@ function isCacheValid(cached: CachedLearnings): boolean {
   return Date.now() - cached.timestamp < LEARNING_CACHE_TTL
 }
 
-export function extractRelevantLearnings(userId: string, query: string, category?: string): Learning[] {
+export async function extractRelevantLearnings(userId: string, query: string, category?: string): Promise<Learning[]> {
   const cacheKey = getCacheKey(userId, category)
   const cached = cache.get(cacheKey)
 
@@ -29,19 +31,37 @@ export function extractRelevantLearnings(userId: string, query: string, category
   if (cached && isCacheValid(cached)) {
     learnings = cached.learnings
   } else {
-    // Get due learnings (spaced repetition candidates)
-    const reviewDue = getReviewDue(userId, 20)
+    if (USE_VECTOR_SEARCH && query && query.length > 3) {
+      // Vector search: semantic similarity
+      const vectorResults = await findSimilarLearnings(query, MAX_LEARNINGS_PER_QUERY)
 
-    // Filter by confidence and relevance
-    learnings = reviewDue
-      .filter((l) => l.confidence >= MIN_CONFIDENCE && l.relevance >= MIN_RELEVANCE)
-      .sort((a, b) => {
-        // Prioritize by relevance * confidence (score)
-        const scoreA = a.relevance * a.confidence
-        const scoreB = b.relevance * b.confidence
-        return scoreB - scoreA
-      })
-      .slice(0, MAX_LEARNINGS_PER_QUERY)
+      // Convert IndexedLearning back to Learning
+      learnings = vectorResults.map((v) => ({
+        id: v.id,
+        type: v.type,
+        category: v.category,
+        content: v.content,
+        confidence: v.confidence,
+        relevance: v.relevance,
+        reviewCount: 0,
+        nextReviewAt: Date.now(),
+        lastReviewAt: undefined,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }))
+    } else {
+      // Fallback: confidence-based filtering for short queries
+      const reviewDue = getReviewDue(userId, 20)
+
+      learnings = reviewDue
+        .filter((l) => l.confidence >= MIN_CONFIDENCE && l.relevance >= MIN_RELEVANCE)
+        .sort((a, b) => {
+          const scoreA = a.relevance * a.confidence
+          const scoreB = b.relevance * b.confidence
+          return scoreB - scoreA
+        })
+        .slice(0, MAX_LEARNINGS_PER_QUERY)
+    }
 
     // Update cache
     cache.set(cacheKey, {
@@ -67,11 +87,16 @@ export function formatLearningsContext(learnings: Learning[]): string {
   return `\n## Related Learnings:\n${lines.join('\n')}`
 }
 
-export function registerLearningFromResponse(userId: string, query: string, response: string, category?: string): void {
-  // Extract potential learnings from successful responses
-  // Simple heuristic: capitalize key phrases and concepts
-
+export async function registerLearningFromResponse(
+  userId: string,
+  query: string,
+  response: string,
+  category?: string
+): Promise<void> {
   const keywords = extractKeywords(response)
+
+  const { proposeLearning, registerLearning } = require('./db/learnings')
+  const { indexNewLearning } = await import('./vectordb/vector-search')
 
   for (const keyword of keywords) {
     const learning: Omit<
@@ -85,10 +110,15 @@ export function registerLearningFromResponse(userId: string, query: string, resp
       relevance: 0.9, // High initial relevance
     }
 
-    // Import and register (avoid circular import by lazy loading)
-    const { proposeLearning, registerLearning } = require('./db/learnings')
     const proposedLearning = proposeLearning(learning)
     registerLearning(proposedLearning)
+
+    // Also index in Orama for vector search
+    try {
+      await indexNewLearning(proposedLearning)
+    } catch (err) {
+      console.warn('[learning] Failed to index in Orama:', err instanceof Error ? err.message : String(err))
+    }
   }
 
   // Invalidate cache after registering new learnings

@@ -410,13 +410,22 @@ export function createServer(
   app.get('/api/learnings/stats', (_req: Request, res: Response) => {
     const { getStats, getCacheStats } = require('./db/learnings')
     const { getCacheStats: getLearningCacheStats } = require('./learning-context')
+    const { getSearchCacheStats } = require('./vectordb/vector-search')
+    const { getIndexStats } = require('./vectordb/orama-store')
 
     try {
       const dbStats = getStats()
-      const cacheStats = getLearningCacheStats()
+      const learningCacheStats = getLearningCacheStats()
+      const searchCacheStats = getSearchCacheStats()
+      const indexStats = getIndexStats()
+
       res.json({
         database: dbStats,
-        cache: cacheStats,
+        cache: {
+          learnings: learningCacheStats,
+          searches: searchCacheStats,
+        },
+        vectorIndex: indexStats,
         timestamp: new Date().toISOString(),
       })
     } catch (err) {

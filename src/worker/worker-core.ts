@@ -34,6 +34,7 @@ import {
   formatLearningsContext,
   registerLearningFromResponse,
 } from './learning-context.ts'
+import { initializeIndex } from './vectordb/orama-store.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -102,6 +103,11 @@ export class JarvisWorker {
     // Initialize SQLite database (Fase 4)
     getDatabase()
 
+    // Initialize Orama vector index (Fase 8.2) in background
+    initializeIndex().catch((err) => {
+      console.warn('[worker] Orama initialization failed, vector search disabled:', err instanceof Error ? err.message : String(err))
+    })
+
     // Limpar sessões expiradas a cada 15 min
     setInterval(() => evictExpiredSessions(), 15 * 60 * 1000)
   }
@@ -152,7 +158,7 @@ export class JarvisWorker {
         baseURL: provider.baseURL,
         apiKey: provider.apiKey,
         model,
-        messages: this.buildMessages(messages, session, userId),
+        messages: await this.buildMessages(messages, session, userId),
       })
 
       reply = result.reply
@@ -161,7 +167,7 @@ export class JarvisWorker {
       outcome = 'success'
 
       // Register learnings from successful response
-      registerLearningFromResponse(userId, userMessage, reply, category)
+      await registerLearningFromResponse(userId, userMessage, reply, category)
 
       if (routeResult) {
         reportOutcome(target, { kind: 'success', apiKey: provider.apiKey, tokens: inputTokens + outputTokens }, this.config.agentModels)
@@ -241,7 +247,7 @@ export class JarvisWorker {
     }
   }
 
-  private buildMessages(
+  private async buildMessages(
     history: { role: 'user' | 'assistant'; content: string }[],
     _session: Session,
     userId?: string,
@@ -254,7 +260,7 @@ export class JarvisWorker {
     // Inject relevant learnings if userId provided
     if (userId) {
       const userMessage = history.length > 0 ? history[history.length - 1].content : ''
-      const learnings = extractRelevantLearnings(userId, userMessage)
+      const learnings = await extractRelevantLearnings(userId, userMessage)
 
       if (learnings.length > 0) {
         const learningContext = formatLearningsContext(learnings)
