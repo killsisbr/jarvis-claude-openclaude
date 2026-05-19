@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { getOauthConfig } from 'src/constants/oauth.js'
 import { getOrganizationUUID } from 'src/services/oauth/client.js'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../../services/analytics/growthbook.js'
 import {
   checkAndRefreshOAuthTokenIfNeeded,
   getClaudeAIOAuthTokens,
@@ -224,12 +223,6 @@ export async function checkRepoForRemoteAccess(
 ): Promise<{ hasAccess: boolean; method: RepoAccessMethod }> {
   if (await checkGithubAppInstalled(owner, repo)) {
     return { hasAccess: true, method: 'github-app' }
-  }
-  if (
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_cobalt_lantern', false) &&
-    (await checkGithubTokenSynced())
-  ) {
-    return { hasAccess: true, method: 'token-sync' }
   }
   return { hasAccess: false, method: 'none' }
 }
