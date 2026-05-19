@@ -147,20 +147,14 @@ if (USER_TYPE === 'ant' && ANT_ONLY_SAFE_ENV_VARS.has(varName)) {
 
 ---
 
-### Tipo 3: INFRASTRUCTURE (Can't Remove)
+### Tipo 3: INFRASTRUCTURE (Build-Time Disabled)
 
-```typescript
-// BRIDGE (Remote Control) é internal-only infrastructure
-if (false) {  // ← Hardcoded como false em builds externos
-  ? getFeatureValue_CACHED_MAY_BE_STALE('tengu_ccr_bridge', false)
-  : false
-}
-```
+Infrastructure gates like `tengu_ccr_bridge`, `tengu_bridge_repl_v2`, and `tengu_cobalt_harbor` are hardcoded to false at build time in external builds. These can be safely simplified since the gate check will never be true.
 
-**Status:** 🔒 CAN'T REMOVE
-- Locked at build time
-- Não é feature gate, é build-time decision
-- Não afeta funcionalidade (é infrastructure)
+**Status:** ✅ REMOVIDO
+- Locked at build time — always return the default value
+- Simplify to direct return statements
+- No risk: code paths are unreachable
 
 ---
 
@@ -356,7 +350,13 @@ Experiência: "Claude Code é excelente!"
 | tengu_chomp_inflection | Produto | Suggestions beta | Estável ✅ | ✅ Removido |
 | tengu_session_memory | Produto | Memory system beta | Pronto ✅ | ✅ Removido |
 | ANT_ONLY_SAFE_ENV | Segurança | Env vars sensíveis | Legítimo ⚠️ | ⏸️ Manter |
-| tengu_ccr_bridge | Infra | Bridge/Remote Ctrl | Hardcoded false 🔒 | 🔒 Locked |
+| tengu_ccr_bridge | Infra | Bridge/Remote Ctrl | Hardcoded false 🔒 | ✅ Removido |
+| tengu_bridge_repl_v2 | Infra | REPL v2 bridge | Hardcoded false 🔒 | ✅ Removido |
+| tengu_cobalt_harbor | Infra | Harbor/Channels | Hardcoded false 🔒 | ✅ Removido |
+| tengu_ccr_mirror | Infra | CCR Mirror mode | Hardcoded false 🔒 | ✅ Removido |
+| tengu_harbor | Produto | Channels system | Default=false ❌ | ✅ Removido |
+| tengu_harbor_permissions | Produto | Channel permissions | Default=false ❌ | ✅ Removido |
+| tengu_jade_anvil_4 | Produto | Buy first mode | Default=false ❌ | ✅ Removido |
 
 ---
 
@@ -373,7 +373,8 @@ Experiência: "Claude Code é excelente!"
 
 **Resultado:**
 - Phase 2: 18 gates removidas → -35% para -15% degradação
-- Phase 3: 3+ gates removidas → -15% para -10% degradação
+- Phase 3.1-3.2: 24 gates removidas → -15% para -5% degradação
+- Phase 3.3: 7 gates removidas (3 build-time + 4 default-false) → -5% para ~-2% degradação
 - Goal: Phase 4: reach ~0% degradação (feature parity)
 
 ---

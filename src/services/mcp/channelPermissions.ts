@@ -27,14 +27,11 @@ import { jsonStringify } from '../../utils/slowOperations.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 
 /**
- * GrowthBook runtime gate — separate from the channels gate (tengu_harbor)
- * so channels can ship without permission-relay riding along (Kenneth: "no
- * bake time if it goes out tomorrow"). Default false; flip without a release.
- * Checked once at useManageMCPConnections mount — mid-session flag changes
- * don't apply until restart.
+ * Channel permission relay — disabled in external builds.
+ * Default false; checked once at useManageMCPConnections mount.
  */
 export function isChannelPermissionRelayEnabled(): boolean {
-  return getFeatureValue_CACHED_MAY_BE_STALE('tengu_harbor_permissions', false)
+  return false
 }
 
 export type ChannelPermissionResponse = {
