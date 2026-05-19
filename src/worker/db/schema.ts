@@ -200,6 +200,38 @@ function initializeSchema(): void {
   database.run(`CREATE INDEX IF NOT EXISTS idx_cached_context_last_used ON cached_contexts(last_used_at)`);
   database.run(`CREATE INDEX IF NOT EXISTS idx_cached_context_model ON cached_contexts(model)`);
 
+  // Routing metrics (Auto-Evolve monitoring)
+  database.run(`CREATE TABLE IF NOT EXISTS routing_metrics (
+    id TEXT PRIMARY KEY,
+    model TEXT NOT NULL,
+    intent TEXT NOT NULL,
+    latency_p50 INTEGER,
+    latency_p95 INTEGER,
+    latency_p99 INTEGER,
+    cost_avg REAL,
+    success_rate REAL,
+    sample_count INTEGER DEFAULT 1,
+    recorded_at INTEGER NOT NULL,
+    UNIQUE(model, intent, recorded_at)
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_routing_metrics_model ON routing_metrics(model)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_routing_metrics_intent ON routing_metrics(intent)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_routing_metrics_recorded ON routing_metrics(recorded_at DESC)`);
+
+  // Routing weights history (Auto-Evolve decisions)
+  database.run(`CREATE TABLE IF NOT EXISTS routing_weights_history (
+    id TEXT PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    weights BLOB NOT NULL,
+    source TEXT NOT NULL,
+    canary_improvement REAL,
+    applied_at INTEGER
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_routing_weights_timestamp ON routing_weights_history(timestamp DESC)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_routing_weights_source ON routing_weights_history(source)`);
+
   console.log("[schema] ✓ Database schema initialized");
 }
 
