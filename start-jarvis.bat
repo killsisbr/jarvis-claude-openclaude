@@ -93,7 +93,7 @@ set /p "choice=Select provider [0-7/R/Q]: "
 
 if /i "!choice!"=="Q" exit /b 0
 if /i "!choice!"=="R"                            call "%ROOT%jarvis-rotate.bat" %* & goto :done
-if /i "!choice!"=="0"                          call "%ROOT%jarvis.bat" claude   & goto :done
+if /i "!choice!"=="0"                          call "%ROOT%haiku.bat" & goto :done
 if /i "!choice!"=="1" if "!HAS_ZEN!"=="1"      call "%ROOT%jarvis.bat" zen      & goto :done
 if /i "!choice!"=="2" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia       & goto :done
 if /i "!choice!"=="3" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia-flash  & goto :done

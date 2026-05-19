@@ -129,4 +129,12 @@ export const INTENTIONALLY_BUNDLED: string[] = [
   'vscode-languageserver-protocol',
   // File watching
   'chokidar',
+  // Worker / Baileys (WhatsApp, SMS)
+  '@whiskeysockets/baileys',
+  'qrcode-terminal',
+  // Express / Database (local server)
+  '@types/better-sqlite3',
+  '@types/express',
+  'better-sqlite3',
+  'express',
 ]
