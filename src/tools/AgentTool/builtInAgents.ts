@@ -60,10 +60,8 @@ export function getBuiltInAgents(): AgentDefinition[] {
     agents.push(CLAUDE_CODE_GUIDE_AGENT)
   }
 
-  if (
-    true &&
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_hive_evidence', false)
-  ) {
+  // Verification Agent: enabled for all users to ensure quality of work
+  if (true) {
     agents.push(VERIFICATION_AGENT)
   }
 

@@ -332,7 +332,6 @@ export const TaskUpdateTool = buildTool({
     let verificationNudgeNeeded = false
     if (
       true &&
-      getFeatureValue_CACHED_MAY_BE_STALE('tengu_hive_evidence', false) &&
       !context.agentId &&
       updates.status === 'completed'
     ) {
