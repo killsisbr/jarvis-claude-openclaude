@@ -183,6 +183,23 @@ function initializeSchema(): void {
   database.run(`CREATE INDEX IF NOT EXISTS idx_user_prefs_category ON user_preferences(category)`);
   database.run(`CREATE INDEX IF NOT EXISTS idx_user_prefs_confidence ON user_preferences(confidence DESC)`);
 
+  // Cached contexts (Smart Cache - Turbo Mode)
+  database.run(`CREATE TABLE IF NOT EXISTS cached_contexts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    system_prompt_hash TEXT NOT NULL,
+    messages BLOB NOT NULL,
+    last_message TEXT NOT NULL,
+    hit_count INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER NOT NULL
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_cached_context_user ON cached_contexts(user_id)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_cached_context_last_used ON cached_contexts(last_used_at)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_cached_context_model ON cached_contexts(model)`);
+
   console.log("[schema] ✓ Database schema initialized");
 }
 
