@@ -3948,10 +3948,6 @@ export function getCompactionReminderAttachment(
   messages: Message[],
   model: string,
 ): Attachment[] {
-  if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_marble_fox', false)) {
-    return []
-  }
-
   if (!isAutoCompactEnabled()) {
     return []
   }
