@@ -230,8 +230,8 @@ function getCustomHaikuOption(): ModelOption | undefined {
 function getHaiku45Option(): ModelOption {
   const is3P = getAPIProvider() !== 'firstParty'
   return {
-    value: 'haiku',
-    label: 'Haiku',
+    value: 'haiku45',
+    label: 'Haiku 4.5',
     description: `Haiku 4.5 · Fastest for quick answers${is3P ? '' : ` · ${formatModelPricing(COST_HAIKU_45)}`}`,
     descriptionForModel:
       'Haiku 4.5 - fastest for quick answers. Lower cost but less capable than Sonnet 4.6.',
@@ -241,8 +241,8 @@ function getHaiku45Option(): ModelOption {
 function getHaiku35Option(): ModelOption {
   const is3P = getAPIProvider() !== 'firstParty'
   return {
-    value: 'haiku',
-    label: 'Haiku',
+    value: 'haiku35',
+    label: 'Haiku 3.5',
     description: `Haiku 3.5 for simple tasks${is3P ? '' : ` · ${formatModelPricing(COST_HAIKU_35)}`}`,
     descriptionForModel:
       'Haiku 3.5 - faster and lower cost, but less capable than Sonnet. Use for simple tasks.',
@@ -302,8 +302,8 @@ const MaxSonnet46Option: ModelOption = {
 }
 
 const MaxHaiku45Option: ModelOption = {
-  value: 'haiku',
-  label: 'Haiku',
+  value: 'haiku45',
+  label: 'Haiku 4.5',
   description: 'Haiku 4.5 · Fastest for quick answers',
 }
 

@@ -747,7 +747,10 @@ export function parseUserSpecifiedModel(
       case 'sonnet':
         return getDefaultSonnetModel() + (has1mTag ? '[1m]' : '')
       case 'haiku':
-        return getDefaultHaikuModel() + (has1mTag ? '[1m]' : '')
+      case 'haiku45':
+        return getModelStrings().haiku45 + (has1mTag ? '[1m]' : '')
+      case 'haiku35':
+        return getModelStrings().haiku35 + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
       case 'best':
