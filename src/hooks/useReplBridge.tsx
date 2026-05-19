@@ -12,7 +12,6 @@ import { useNotifications } from '../context/notifications.js';
 import type { PermissionMode, SDKMessage } from '../entrypoints/agentSdkTypes.js';
 import type { SDKControlResponse } from '../entrypoints/sdk/controlTypes.js';
 import { Text } from '../ink.js';
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js';
 import { useAppState, useAppStateStore, useSetAppState } from '../state/AppState.js';
 import type { Message } from '../types/message.js';
 import { getCwd } from '../utils/cwd.js';
@@ -281,48 +280,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
                       replBridgeError: undefined
                     };
                   });
-                  // Send system/init so remote clients (web/iOS/Android) get
-                  // session metadata. REPL uses query() directly — never hits
-                  // QueryEngine's SDKMessage layer — so this is the only path
-                  // to put system/init on the REPL-bridge wire. Skills load is
-                  // async (memoized, cheap after REPL startup); fire-and-forget
-                  // so the connected-state transition isn't blocked.
-                  if (getFeatureValue_CACHED_MAY_BE_STALE('tengu_bridge_system_init', false)) {
-                    void (async () => {
-                      try {
-                        const skills = await getSlashCommandToolSkills(getCwd());
-                        if (cancelled) return;
-                        const state_0 = store.getState();
-                        handleRef.current?.writeSdkMessages([buildSystemInitMessage({
-                          // tools/mcpClients/plugins redacted for REPL-bridge:
-                          // MCP-prefixed tool names and server names leak which
-                          // integrations the user has wired up; plugin paths leak
-                          // raw filesystem paths (username, project structure).
-                          // CCR v2 persists SDK messages to Spanner — users who
-                          // tap "Connect from phone" may not expect these on
-                          // Anthropic's servers. QueryEngine (SDK) still emits
-                          // full lists — SDK consumers expect full telemetry.
-                          tools: [],
-                          mcpClients: [],
-                          model: mainLoopModelRef.current,
-                          permissionMode: state_0.toolPermissionContext.mode as PermissionMode,
-                          // TODO: avoid the cast
-                          // Remote clients can only invoke bridge-safe commands —
-                          // advertising unsafe ones (local-jsx, unallowed local)
-                          // would let mobile/web attempt them and hit errors.
-                          commands: commandsRef.current.filter(isBridgeSafeCommand),
-                          agents: state_0.agentDefinitions.activeAgents,
-                          skills,
-                          plugins: [],
-                          fastMode: state_0.fastMode
-                        })]);
-                      } catch (err_0) {
-                        logForDebugging(`[bridge:repl] Failed to send system/init: ${errorMessage(err_0)}`, {
-                          level: 'error'
-                        });
-                      }
-                    })();
-                  }
+                  // system/init message sending disabled at build time
                   break;
                 }
               case 'reconnecting':
