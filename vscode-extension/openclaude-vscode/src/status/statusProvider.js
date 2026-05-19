@@ -54,6 +54,7 @@ class StatusMonitorProvider {
     if (!this.webviewView) return;
 
     try {
+      console.log('[status] Starting refresh...');
       await Promise.all([
         this.fetchHealth(),
         this.fetchCost(),
@@ -61,15 +62,19 @@ class StatusMonitorProvider {
         this.fetchSentinels(),
       ]);
 
-      this.webviewView.webview.html = this.getHtml();
+      const html = this.getHtml();
+      console.log('[status] HTML generated, length:', html.length);
+      this.webviewView.webview.html = html;
+      console.log('[status] HTML set successfully');
     } catch (error) {
       console.error('[status] Error:', error);
+      this.webviewView.webview.html = `<p>Erro: ${error.message}</p>`;
     }
   }
 
   async fetchHealth() {
     try {
-      const response = await fetch('http://localhost:3000/health');
+      const response = await fetch('http://localhost:1000/health');
       this.healthData = response.ok ? await response.json() : null;
     } catch (error) {
       this.healthData = null;
@@ -78,7 +83,7 @@ class StatusMonitorProvider {
 
   async fetchCost() {
     try {
-      const response = await fetch('http://localhost:3000/api/cost');
+      const response = await fetch('http://localhost:1000/api/cost');
       this.costData = response.ok ? await response.json() : null;
     } catch (error) {
       this.costData = null;
@@ -87,7 +92,7 @@ class StatusMonitorProvider {
 
   async fetchCron() {
     try {
-      const response = await fetch('http://localhost:3000/api/cron');
+      const response = await fetch('http://localhost:1000/api/cron');
       this.cronData = response.ok ? await response.json() : null;
     } catch (error) {
       this.cronData = null;
@@ -96,7 +101,7 @@ class StatusMonitorProvider {
 
   async fetchSentinels() {
     try {
-      const response = await fetch('http://localhost:3000/api/sentinels');
+      const response = await fetch('http://localhost:1000/api/sentinels');
       this.sentinelData = response.ok ? await response.json() : null;
     } catch (error) {
       this.sentinelData = null;

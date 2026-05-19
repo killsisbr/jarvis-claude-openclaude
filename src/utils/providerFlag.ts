@@ -37,6 +37,7 @@ const PREFERRED_PROVIDER_ORDER = [
   'vertex',
   'ollama',
   'nvidia-nim',
+  'nvidia-flash',
   'minimax',
   'venice',
 ] as const
@@ -269,6 +270,16 @@ export function applyProviderFlag(
         process.env.OPENAI_API_KEY = process.env.NVIDIA_API_KEY
       }
       process.env.OPENAI_MODEL ??= 'nvidia/llama-3.1-nemotron-70b-instruct'
+      if (model) process.env.OPENAI_MODEL = model
+      break
+
+    case 'nvidia-flash':
+      process.env.CLAUDE_CODE_USE_OPENAI = '1'
+      process.env.OPENAI_BASE_URL ??= defaultBaseUrl ?? 'https://integrate.api.nvidia.com/v1'
+      if (process.env.NVIDIA_API_KEY && !process.env.OPENAI_API_KEY) {
+        process.env.OPENAI_API_KEY = process.env.NVIDIA_API_KEY
+      }
+      process.env.OPENAI_MODEL ??= 'deepseek-ai/deepseek-v4-flash'
       if (model) process.env.OPENAI_MODEL = model
       break
 

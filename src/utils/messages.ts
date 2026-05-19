@@ -184,10 +184,7 @@ const TOOL_REFERENCE_TURN_BOUNDARY = 'Tool loaded.'
  * when auto-memory is enabled and the GrowthBook flag is on.
  */
 export function withMemoryCorrectionHint(message: string): string {
-  if (
-    isAutoMemoryEnabled() &&
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_amber_prism', false)
-  ) {
+  if (isAutoMemoryEnabled()) {
     return message + MEMORY_CORRECTION_HINT
   }
   return message

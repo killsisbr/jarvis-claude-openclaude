@@ -52,17 +52,23 @@ class SkillsViewProvider {
     if (!this.webviewView) return;
 
     try {
+      console.log('[skills] Starting refresh...');
       const skills = await this.fetchSkills();
+      console.log('[skills] Fetched skills:', skills.length);
       this.skills = skills;
-      this.webviewView.webview.html = this.getHtml(skills);
+      const html = this.getHtml(skills);
+      console.log('[skills] HTML generated, length:', html.length);
+      this.webviewView.webview.html = html;
+      console.log('[skills] HTML set successfully');
     } catch (error) {
+      console.error('[skills] Error:', error);
       this.webviewView.webview.html = this.getErrorHtml(error);
     }
   }
 
   async fetchSkills() {
     try {
-      const response = await fetch('http://localhost:3000/api/skills', {
+      const response = await fetch('http://localhost:1000/api/skills', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -81,7 +87,7 @@ class SkillsViewProvider {
 
   async executeSkill(skillName) {
     try {
-      const response = await fetch(`http://localhost:3000/api/skills/${skillName}/execute`, {
+      const response = await fetch(`http://localhost:1000/api/skills/${skillName}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload: {} }),

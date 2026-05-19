@@ -79,10 +79,11 @@ echo  [0] Claude Pro/Max       [/login]
 set "N=1"
 if "!HAS_ZEN!"=="1"      ( set /a N+=1 & echo  [1] Zen OpenCode        [ONLINE] )
 if "!HAS_NVIDIA!"=="1"   ( set /a N+=1 & echo  [2] NVIDIA NIM           [ONLINE] )
-if "!HAS_DEEPSEEK!"=="1" ( set /a N+=1 & echo  [3] DeepSeek API         [ONLINE] )
-if "!HAS_GROQ!"=="1"     ( set /a N+=1 & echo  [4] Groq LPU             [ONLINE] )
-if "!HAS_OLLAMA!"=="1"   ( set /a N+=1 & echo  [5] Ollama Local          [ONLINE] )
-if "!HAS_GITHUB!"=="1"   ( set /a N+=1 & echo  [6] GitHub Models         [READY]  )
+if "!HAS_NVIDIA!"=="1"   ( set /a N+=1 & echo  [3] NVIDIA FLASH         [ONLINE] )
+if "!HAS_DEEPSEEK!"=="1" ( set /a N+=1 & echo  [4] DeepSeek API         [ONLINE] )
+if "!HAS_GROQ!"=="1"     ( set /a N+=1 & echo  [5] Groq LPU             [ONLINE] )
+if "!HAS_OLLAMA!"=="1"   ( set /a N+=1 & echo  [6] Ollama Local          [ONLINE] )
+if "!HAS_GITHUB!"=="1"   ( set /a N+=1 & echo  [7] GitHub Models         [READY]  )
 echo.
 echo  [Q] Quit
 echo  [R] Rotate Mode        [auto-failover chain]
@@ -91,14 +92,15 @@ echo.
 set /p "choice=Select provider [0-7/R/Q]: "
 
 if /i "!choice!"=="Q" exit /b 0
-if /i "!choice!"=="R"                            goto :rotate_launch
+if /i "!choice!"=="R"                            call "%ROOT%jarvis-rotate.bat" %* & goto :done
 if /i "!choice!"=="0"                          call "%ROOT%jarvis.bat" claude   & goto :done
 if /i "!choice!"=="1" if "!HAS_ZEN!"=="1"      call "%ROOT%jarvis.bat" zen      & goto :done
-if /i "!choice!"=="2" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia   & goto :done
-if /i "!choice!"=="3" if "!HAS_DEEPSEEK!"=="1" call "%ROOT%jarvis.bat" deepseek & goto :done
-if /i "!choice!"=="4" if "!HAS_GROQ!"=="1"     goto :groq_launch
-if /i "!choice!"=="5" if "!HAS_OLLAMA!"=="1"   call "%ROOT%jarvis.bat" ollama   & goto :done
-if /i "!choice!"=="6" if "!HAS_GITHUB!"=="1"   call "%ROOT%jarvis.bat" github   & goto :done
+if /i "!choice!"=="2" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia       & goto :done
+if /i "!choice!"=="3" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia-flash  & goto :done
+if /i "!choice!"=="4" if "!HAS_DEEPSEEK!"=="1" call "%ROOT%jarvis.bat" deepseek & goto :done
+if /i "!choice!"=="5" if "!HAS_GROQ!"=="1"     goto :groq_launch
+if /i "!choice!"=="6" if "!HAS_OLLAMA!"=="1"   call "%ROOT%jarvis.bat" ollama   & goto :done
+if /i "!choice!"=="7" if "!HAS_GITHUB!"=="1"   call "%ROOT%jarvis.bat" github   & goto :done
 
 echo Invalid choice or provider offline.
 pause
@@ -115,54 +117,6 @@ echo [jarvis] Provider: Groq LPU
 echo [jarvis] Model:    !OPENAI_MODEL!
 echo.
 node "%ROOT%bin\jarvis" --dangerously-skip-permissions
-goto :done
-
-:rotate_launch
-REM ── Rotate Mode: activate RotateChain ──
-echo.
-echo ============================================
-echo  Rotate Mode - Auto-Failover Chain
-echo ============================================
-echo.
-
-if not defined ROTATE_CHAIN (
-    if defined ZEN_API_KEY_1 (
-        set "ROTATE_CHAIN=zen"
-    ) else if defined NVIDIA_API_KEY (
-        set "ROTATE_CHAIN=nvidia"
-    ) else (
-        echo [rotate] No providers configured. Set ROTATE_CHAIN in .env
-        echo [rotate] or configure at least one API key (NVIDIA_API_KEY, ZEN_API_KEY_1, etc).
-        pause
-        exit /b 1
-    )
-)
-
-echo [rotate] Chain: %ROTATE_CHAIN%
-if defined ROTATE_CIRCUIT_BREAKER_THRESHOLD echo [rotate] Circuit threshold: %ROTATE_CIRCUIT_BREAKER_THRESHOLD% failures
-if defined ROTATE_CIRCUIT_BREAKER_COOLDOWN  echo [rotate] Circuit cooldown: %ROTATE_CIRCUIT_BREAKER_COOLDOWN% seconds
-echo.
-
-REM Check required keys, warn of missing ones
-for %%p in (%ROTATE_CHAIN%) do (
-    if /i "%%p"=="nvidia" if not defined NVIDIA_API_KEY (
-        echo [rotate] WARNING: NVIDIA_API_KEY not set. NVIDIA will fail.
-    )
-    if /i "%%p"=="zen" if not defined ZEN_API_KEY_1 if not defined ZEN_API_KEY (
-        echo [rotate] WARNING: No ZEN_API_KEY_N found. Zen will fail.
-    )
-    if /i "%%p"=="groq" if not defined GROQ_API_KEY (
-        echo [rotate] WARNING: GROQ_API_KEY not set. Groq will fail.
-    )
-)
-
-REM Set env vars for RotateChain
-set "ROTATE_MODE=1"
-
-REM Ensure all provider env vars are visible to JARVIS
-echo [rotate] Starting JARVIS with RotateChain...
-echo.
-call "%ROOT%jarvis.bat" rotate
 goto :done
 
 :done

@@ -1,0 +1,6 @@
+1. Qwen Coder 480B | avg: 1988ms | ttfb: 773ms | errs: 0/3
+2. Qwen Next 80B | avg: 2390ms | ttfb: 1527ms | errs: 0/3
+3. Qwen 3.5 397B | avg: 14932ms | ttfb: 14170ms | errs: 0/3
+4. DeepSeek V4 Flash | avg: 95693ms | ttfb: 91920ms | errs: 2/3
+5. DeepSeek V4 Pro | avg: FAIL | ttfb: - | errs: 3/3
+6. MiniMax M2.7 | avg: FAIL | ttfb: - | errs: 3/3

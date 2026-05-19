@@ -19,5 +19,6 @@ export default defineBrand({
     'qwen3-coder-next',
     'qwen3-max',
     'Qwen/Qwen3.5-9B',
+    'qwen/qwen3-coder-480b-a35b-instruct',
   ],
 })

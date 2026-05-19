@@ -63,20 +63,25 @@ class QuickActionsProvider {
     if (!this.webviewView) return;
 
     try {
+      console.log('[quickActions] Starting refresh...');
       await Promise.all([
         this.fetchApprovalsCount(),
         this.fetchPlanMode(),
       ]);
 
-      this.webviewView.webview.html = this.getHtml();
+      const html = this.getHtml();
+      console.log('[quickActions] HTML generated, length:', html.length);
+      this.webviewView.webview.html = html;
+      console.log('[quickActions] HTML set successfully');
     } catch (error) {
       console.error('[quickActions] Error:', error);
+      this.webviewView.webview.html = `<p>Erro: ${error.message}</p>`;
     }
   }
 
   async fetchApprovalsCount() {
     try {
-      const response = await fetch('http://localhost:3000/api/approvals/pending');
+      const response = await fetch('http://localhost:1000/api/approvals/pending');
       if (response.ok) {
         const data = await response.json();
         this.approvalsCount = data.pending?.length || 0;
@@ -88,7 +93,7 @@ class QuickActionsProvider {
 
   async fetchPlanMode() {
     try {
-      const response = await fetch('http://localhost:3000/api/mode');
+      const response = await fetch('http://localhost:1000/api/mode');
       if (response.ok) {
         const data = await response.json();
         this.currentMode = data.current || 'operate';
@@ -137,7 +142,7 @@ class QuickActionsProvider {
     if (!selected) return;
 
     try {
-      const response = await fetch('http://localhost:3000/api/mode', {
+      const response = await fetch('http://localhost:1000/api/mode', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: selected }),
@@ -157,7 +162,7 @@ class QuickActionsProvider {
 
   async viewApprovals() {
     try {
-      const response = await fetch('http://localhost:3000/api/approvals/pending');
+      const response = await fetch('http://localhost:1000/api/approvals/pending');
       if (!response.ok) throw new Error('Falha ao buscar approvals');
 
       const data = await response.json();
@@ -185,7 +190,7 @@ class QuickActionsProvider {
         });
 
         if (action === '✓ Aprovar') {
-          const approveResponse = await fetch(`http://localhost:3000/api/approve/${selected.id}`, {
+          const approveResponse = await fetch(`http://localhost:1000/api/approve/${selected.id}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ approver: 'vscode' }),
@@ -195,7 +200,7 @@ class QuickActionsProvider {
             await vscode.window.showInformationMessage('✅ Aprovado!');
           }
         } else if (action === '✗ Rejeitar') {
-          const denyResponse = await fetch(`http://localhost:3000/api/deny/${selected.id}`, {
+          const denyResponse = await fetch(`http://localhost:1000/api/deny/${selected.id}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: 'Rejected via VS Code' }),

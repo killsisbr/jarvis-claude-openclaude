@@ -2,7 +2,7 @@
 setlocal enableextensions
 
 REM JARVIS v5 launcher. Usage: jarvis.bat [provider] [extra-args]
-REM Providers: claude (default), zen, nvidia, deepseek, ollama, github, groq
+REM Providers: claude (default), zen, nvidia, nvidia-flash, deepseek, ollama, github, groq
 REM
 REM "claude" mode uses your Claude Pro/Max subscription via OAuth.
 REM Run /login inside JARVIS to authenticate on first use.
@@ -35,6 +35,7 @@ if not exist "%ROOT%dist\cli.mjs" (
 
 if /i "%~1"=="claude"   goto :p_claude
 if /i "%~1"=="zen"      goto :p_zen
+if /i "%~1"=="nvidia-flash" goto :p_nvidia_flash
 if /i "%~1"=="nvidia"   goto :p_nvidia
 if /i "%~1"=="deepseek" goto :p_deepseek
 if /i "%~1"=="ollama"   goto :p_ollama
@@ -68,7 +69,7 @@ goto :launch
 set "CLAUDE_CODE_USE_OPENAI=1"
 set "OPENAI_BASE_URL=https://integrate.api.nvidia.com/v1"
 set "OPENAI_API_KEY=%NVIDIA_API_KEY%"
-set "OPENAI_MODEL=nvidia/llama-3.1-nemotron-70b-instruct"
+set "OPENAI_MODEL=qwen/qwen3-coder-480b-a35b-instruct"
 echo [jarvis] NVIDIA / %OPENAI_MODEL%
 goto :launch
 
@@ -103,7 +104,7 @@ set "PASS_ARGS=%~2 %~3 %~4 %~5 %~6 %~7 %~8 %~9"
 set "CLAUDE_CODE_USE_OPENAI=1"
 set "OPENAI_BASE_URL=https://integrate.api.nvidia.com/v1"
 if defined NVIDIA_API_KEY set "OPENAI_API_KEY=%NVIDIA_API_KEY%"
-set "OPENAI_MODEL=nvidia/llama-3.1-nemotron-70b-instruct"
+set "OPENAI_MODEL=qwen/qwen3-coder-480b-a35b-instruct"
 echo [jarvis] NVIDIA / %OPENAI_MODEL%
 goto :launch
 
@@ -115,6 +116,15 @@ if defined DEEPSEEK_API_KEY set "OPENAI_API_KEY=%DEEPSEEK_API_KEY%"
 if not defined DEEPSEEK_MODEL set "DEEPSEEK_MODEL=deepseek-chat"
 set "OPENAI_MODEL=%DEEPSEEK_MODEL%"
 echo [jarvis] DeepSeek / %OPENAI_MODEL%
+goto :launch
+
+:p_nvidia_flash
+set "PASS_ARGS=%~2 %~3 %~4 %~5 %~6 %~7 %~8 %~9"
+set "CLAUDE_CODE_USE_OPENAI=1"
+set "OPENAI_BASE_URL=https://integrate.api.nvidia.com/v1"
+if defined NVIDIA_API_KEY set "OPENAI_API_KEY=%NVIDIA_API_KEY%"
+set "OPENAI_MODEL=deepseek-ai/deepseek-v4-flash"
+echo [jarvis] NVIDIA Flash / %OPENAI_MODEL%
 goto :launch
 
 :p_ollama
@@ -146,6 +156,10 @@ goto :launch
 :p_rotate
 set "PASS_ARGS=%~2 %~3 %~4 %~5 %~6 %~7 %~8 %~9"
 set "ROTATE_MODE=1"
+set "CLAUDE_CODE_USE_OPENAI=1"
+set "OPENAI_BASE_URL=http://localhost:9999/v1"
+set "OPENAI_MODEL=gpt-4o-mini"
+set "OPENAI_API_KEY=placeholder"
 set "CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED=1"
 echo [jarvis] Rotate Mode (chain: %ROTATE_CHAIN%)
 goto :launch

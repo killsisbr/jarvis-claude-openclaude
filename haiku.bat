@@ -1,49 +1,55 @@
 @echo off
 setlocal
 
-REM ─────────────────────────────────────────────────────────────────────────
-REM  haiku.bat — JARVIS com Claude Haiku (rápido e barato)
+REM =============================================================
+REM  haiku.bat - JARVIS com Claude Haiku (rapido e barato)
 REM
-REM  Ideal para tarefas simples, implementação de planos,
-REM  revisões rápidas e prototipagem.
+REM  Ideal para tarefas simples, implementacao de planos,
+REM  revisoes rapidas e prototipagem.
 REM
 REM  Uso:
 REM    haiku.bat                        (modo interativo)
-REM    haiku.bat "sua pergunta"         (comando único)
-REM    haiku.bat "prompt" -p            (print mode, sem loop)
-REM
-REM  Para planejamento complexo, use o Opus:
-REM    claude --model opus
-REM ─────────────────────────────────────────────────────────────────────────
+REM    haiku.bat "sua pergunta"         (comando unico)
+REM    haiku.bat "prompt" -p            (print mode)
+REM =============================================================
 
-:: ── Resolve diretório do projeto ──
 set "ROOT=%~dp0"
 
-:: ── Carrega Anthropic API key do .env (se existir) ──
+REM Remove variaveis ANTHROPIC do sistema que redirecionam modelos (z-ai)
+REM e conflitam com o /login OAuth
+set "ANTHROPIC_API_KEY="
+set "ANTHROPIC_AUTH_TOKEN="
+set "ANTHROPIC_DEFAULT_HAIKU_MODEL="
+set "ANTHROPIC_DEFAULT_SONNET_MODEL="
+set "ANTHROPIC_DEFAULT_OPUS_MODEL="
+
+REM Carrega variaveis do .env (exceto ANTHROPIC_API_KEY)
 if exist "%ROOT%.env" (
-    for /f "tokens=1,* delims==" %%a in ('findstr /i /b "ANTHROPIC_API_KEY" "%ROOT%.env"') do (
+    for /f "tokens=1,* delims==" %%a in ('findstr /i /b "HAIKU_ CLAUDE_ OPENAI_" "%ROOT%.env"') do (
         set "%%a=%%b"
     )
 )
 
-:: ── Verifica se tem chave ou token de sessão ──
-if not defined ANTHROPIC_API_KEY (
-    echo [haiku] ANTHROPIC_API_KEY not found in .env
-    echo [haiku] The free Claude plan may still work via OAuth (login will prompt).
+REM Se nao tem CLAUDE_CODE_USE_OPENAI, usa /login OAuth
+if not defined CLAUDE_CODE_USE_OPENAI (
+    echo [haiku] Usando autenticacao OAuth (/login)
+    echo [haiku] Se ainda nao logou, rode: claude --login
     echo.
 )
 
-:: ── Seta Haiku como modelo ──
-set "MODEL=haiku"
-
-:: ── Monta args ──
-set "CLAUDE_ARGS=--model %MODEL% %*"
-
-:: ── Executa ──
-echo [haiku] Starting Claude %MODEL%...
 echo.
-claude %CLAUDE_ARGS%
-
+echo ============================================
+echo  Haiku Mode - Claude Haiku
+echo ============================================
 echo.
-echo [haiku] Session ended.
+
+claude --dangerously-skip-permissions --model claude-haiku-4-20250514 %*
+
+if errorlevel 1 (
+    echo.
+    echo [haiku] JARVIS exited with code %errorlevel%
+    echo [haiku] Press any key...
+    pause > nul
+)
+
 endlocal
