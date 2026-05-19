@@ -2337,7 +2337,7 @@ async function run(): Promise<CommanderCommand> {
     // --bare / SIMPLE: skip — these are cache-warms for the REPL's
     // first-turn responsiveness (quota, passes, fastMode, bootstrap data). Fast
     // mode doesn't apply to the Agent SDK anyway (see getFastModeUnavailableReason).
-    const bgRefreshThrottleMs = getFeatureValue_CACHED_MAY_BE_STALE('tengu_cicada_nap_ms', 0);
+    const bgRefreshThrottleMs = 0;
     const lastPrefetched = getGlobalConfig().startupPrefetchedAt ?? 0;
     const skipStartupPrefetches = isBareMode() || bgRefreshThrottleMs > 0 && Date.now() - lastPrefetched < bgRefreshThrottleMs;
     // Always prefetch Ollama models (not gated by throttle — local server, fast & cheap)
@@ -2354,14 +2354,7 @@ async function run(): Promise<CommanderCommand> {
 
       // TODO: Consolidate other prefetches into a single bootstrap request.
       void prefetchPassesEligibility();
-      if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_miraculo_the_bard', false)) {
-        void prefetchFastModeStatus();
-      } else {
-        // Kill switch skips the network call, not org-policy enforcement.
-        // Resolve from cache so orgStatus doesn't stay 'pending' (which
-        // getFastModeUnavailableReason treats as permissive).
-        resolveFastModeStatusFromCache();
-      }
+      void prefetchFastModeStatus();
       if (bgRefreshThrottleMs > 0) {
         saveGlobalConfig(current => ({
           ...current,
@@ -3407,8 +3400,7 @@ async function run(): Promise<CommanderCommand> {
         const hasInitialPrompt = remote.length > 0;
 
         // Check if TUI mode is enabled - description is only optional in TUI mode
-        const isRemoteTuiEnabled = getFeatureValue_CACHED_MAY_BE_STALE('tengu_remote_backend', false);
-        if (!isRemoteTuiEnabled && !hasInitialPrompt) {
+        if (!hasInitialPrompt) {
           return await exitWithError(root, 'Error: --remote requires a description.\nUsage: openclaude --remote "your task description"', () => gracefulShutdown(1));
         }
         logEvent('tengu_remote_create_session', {
