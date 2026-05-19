@@ -59,6 +59,7 @@ import { logForDebugging } from '../utils/debug.js'
 import { loadMemoryPrompt } from '../memdir/memdir.js'
 import { isUndercover } from '../utils/undercover.js'
 import { isMcpInstructionsDeltaEnabled } from '../utils/mcpInstructionsDelta.js'
+import { isPersonaEnabled, buildPersonaPrompt } from '../persona/index.js'
 
 // Dead code elimination: conditional imports for feature-gated modules
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -439,6 +440,17 @@ function getSimpleToneAndStyleSection(): string {
   return [`# Tone and style`, ...prependBullets(items)].join(`\n`)
 }
 
+/**
+ * Seção da persona JARVIS (Camada `core`).
+ * Vai ANTES de tudo no prompt — primeira instrução que o modelo vê é "Você é JARVIS".
+ * Só é injetada quando JARVIS_PERSONA está habilitada (opt-in).
+ * Retorna null se desabilitada — sumido do prompt, zero overhead.
+ */
+function getJarvisPersonaSection(): string | null {
+  if (!isPersonaEnabled()) return null
+  return buildPersonaPrompt()
+}
+
 export async function getSystemPrompt(
   tools: Tools,
   model: string,
@@ -446,6 +458,12 @@ export async function getSystemPrompt(
   mcpClients?: MCPServerConnection[],
 ): Promise<string[]> {
   if (isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)) {
+    const personaSection = getJarvisPersonaSection()
+    if (personaSection !== null) {
+      return [
+        `${personaSection}\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
+      ]
+    }
     return [
       `You are OpenClaude, an open-source coding agent and CLI.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
     ]
@@ -557,6 +575,7 @@ ${CYBER_RISK_INSTRUCTION}`,
 
   return [
     // --- Static content (cacheable) ---
+    getJarvisPersonaSection(),
     getSimpleIntroSection(outputStyleConfig),
     getSimpleSystemSection(),
     outputStyleConfig === null ||
