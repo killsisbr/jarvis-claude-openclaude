@@ -41,10 +41,10 @@ export class BaileysGateway extends WhatsAppGateway {
       const createLogger = () => {
         const logger = {
           log: (msg: any) => console.log(`[Baileys] ${msg}`),
-          error: (msg: any) => console.error(`[Baileys ERROR] ${msg}`),
-          warn: (msg: any) => console.warn(`[Baileys WARN] ${msg}`),
+          error: (msg: any) => console.error(`[Baileys ERROR]`, msg instanceof Error ? msg.message : JSON.stringify(msg)),
+          warn: (msg: any) => console.warn(`[Baileys WARN]`, msg instanceof Error ? msg.message : msg),
           debug: (msg: any) => {},
-          info: (msg: any) => console.log(`[Baileys INFO] ${msg}`),
+          info: (msg: any) => console.log(`[Baileys INFO]`, msg instanceof Error ? msg.message : msg),
           trace: (msg: any) => {},
           child: () => logger, // Return self for chaining
         };
@@ -124,17 +124,30 @@ export class BaileysGateway extends WhatsAppGateway {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
+      console.log("[Baileys] QR Code gerado - escaneie com seu WhatsApp");
       this.emit("qr", qr);
     }
 
     if (connection === "open") {
-      console.log("[Baileys] Connected successfully");
+      console.log("[Baileys] ✅ Conectado com sucesso ao WhatsApp");
       this.reconnectAttempts = 0;
       this.emit("connected", this.sock.user);
     } else if (connection === "close") {
+      const errorMessage = lastDisconnect?.error instanceof Error
+        ? lastDisconnect.error.message
+        : (lastDisconnect?.error?.toString?.() || "Unknown error");
+
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const isCryptoError = errorMessage?.includes("Crypto") || errorMessage?.includes("ciphertext");
+
+      console.log(`[Baileys] ❌ Desconectado. Erro: ${errorMessage.substring(0, 100)}, Status: ${statusCode}`);
+
+      if (isCryptoError) {
+        console.log("[Baileys] ⚠️  Erro de criptografia detectado - será necessário fazer novo scan do QR code");
+      }
+
       const shouldReconnect =
-        (lastDisconnect.error as Boom)?.output?.statusCode !==
-        DisconnectReason.loggedOut;
+        statusCode !== DisconnectReason.loggedOut && !isCryptoError;
 
       if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
@@ -143,11 +156,11 @@ export class BaileysGateway extends WhatsAppGateway {
           this.maxReconnectDelay
         );
         console.log(
-          `[Baileys] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+          `[Baileys] 🔄 Reconectando em ${delay}ms (tentativa ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
         );
         setTimeout(() => this.connect().catch(console.error), delay);
       } else {
-        console.log("[Baileys] Disconnected permanently");
+        console.log("[Baileys] 🛑 Desconectado permanentemente - será necessário novo scan de QR code");
         this.emit("disconnected", lastDisconnect.error);
       }
     }

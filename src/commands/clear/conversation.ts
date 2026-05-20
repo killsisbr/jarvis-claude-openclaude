@@ -116,12 +116,10 @@ export async function clearConversation({
   setMessages(() => [])
 
   // Clear context-blocked flag so proactive ticks resume after /clear
-  if (false || false) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { setContextBlocked } = require('../../proactive/index.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    setContextBlocked(false)
-  }
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const { setContextBlocked } = require('../../proactive/index.js')
+  /* eslint-enable @typescript-eslint/no-require-imports */
+  setContextBlocked(false)
 
   // Force logo re-render by updating conversationId
   if (setConversationId) {

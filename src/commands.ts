@@ -67,10 +67,7 @@ import vim from './commands/vim/index.js'
 import { isBuddyEnabled } from './buddy/feature.js'
 // Dead code elimination: conditional imports
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactive =
-  false || false
-    ? require('./commands/proactive.js').default
-    : null
+const proactive = require('./commands/proactive.js').default as typeof import('./commands/proactive.js').default
 const briefCommand =
   false || false
     ? require('./commands/brief.js').default
@@ -345,7 +342,7 @@ const COMMANDS = memoize((): Command[] => [
   ...(webCmd ? [webCmd] : []),
   ...(forkCmd ? [forkCmd] : []),
   ...(buddy ? [buddy] : []),
-  ...(proactive ? [proactive] : []),
+  proactive,
   ...(briefCommand ? [briefCommand] : []),
   ...(assistantCommand ? [assistantCommand] : []),
   ...(bridge ? [bridge] : []),

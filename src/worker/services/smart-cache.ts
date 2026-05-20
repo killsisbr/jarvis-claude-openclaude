@@ -233,3 +233,18 @@ export function createCachedContext(
     lastUsedAt: Date.now()
   }
 }
+
+/**
+ * Singleton instance of SmartCache
+ */
+let cacheInstance: SmartCache | null = null
+
+/**
+ * Get or create the global SmartCache instance
+ */
+export function getSmartCache(): SmartCache {
+  if (!cacheInstance) {
+    cacheInstance = new SmartCache()
+  }
+  return cacheInstance
+}

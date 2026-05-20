@@ -246,6 +246,50 @@ function initializeSchema(): void {
   database.run(`CREATE INDEX IF NOT EXISTS idx_api_users_api_key ON api_users(api_key)`);
   database.run(`CREATE INDEX IF NOT EXISTS idx_api_users_username ON api_users(username)`);
 
+  // Night Worker: Missions (autonomous long-running tasks)
+  database.run(`CREATE TABLE IF NOT EXISTS missions (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    plan TEXT,
+    status TEXT NOT NULL CHECK(status IN ('queued', 'planning', 'running', 'paused', 'completed', 'failed', 'cancelled')) DEFAULT 'queued',
+    phases TEXT,
+    current_phase INTEGER DEFAULT 0,
+    total_phases INTEGER DEFAULT 0,
+    working_dir TEXT NOT NULL,
+    budget_limit REAL DEFAULT 50.0,
+    tokens_used INTEGER DEFAULT 0,
+    cost_total REAL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    completed_at INTEGER,
+    report_path TEXT,
+    error_msg TEXT
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_missions_status ON missions(status)`);
+  database.run(`CREATE INDEX IF NOT EXISTS idx_missions_created ON missions(created_at DESC)`);
+
+  // Night Worker: Mission logs (per-phase execution log)
+  database.run(`CREATE TABLE IF NOT EXISTS mission_logs (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+    phase INTEGER NOT NULL,
+    phase_title TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'passed', 'failed', 'skipped')) DEFAULT 'pending',
+    output TEXT,
+    tests_run INTEGER DEFAULT 0,
+    tests_passed INTEGER DEFAULT 0,
+    retries INTEGER DEFAULT 0,
+    tokens_used INTEGER DEFAULT 0,
+    cost REAL DEFAULT 0,
+    started_at INTEGER,
+    completed_at INTEGER,
+    FOREIGN KEY(mission_id) REFERENCES missions(id)
+  )`);
+
+  database.run(`CREATE INDEX IF NOT EXISTS idx_mission_logs_mission ON mission_logs(mission_id)`);
+
   console.log("[schema] ✓ Database schema initialized");
 }
 

@@ -14,10 +14,7 @@ export { asSystemPrompt, type SystemPrompt } from './systemPromptType.js'
 // Same pattern as prompts.ts — lazy require to avoid pulling the module
 // into non-proactive builds.
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule =
-  false || false
-    ? (require('../proactive/index.js') as typeof import('../proactive/index.js'))
-    : null
+const proactiveModule = require('../proactive/index.js') as typeof import('../proactive/index.js')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 function isProactiveActive_SAFE_TO_CALL_ANYWHERE(): boolean {

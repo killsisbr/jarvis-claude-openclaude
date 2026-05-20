@@ -39,11 +39,27 @@ if not defined CLAUDE_CODE_USE_OPENAI (
 
 echo.
 echo ============================================
-echo  Haiku Mode - Claude Haiku
+echo  Haiku Mode - Claude Haiku (OpenClaude Local)
 echo ============================================
 echo.
 
-claude --dangerously-skip-permissions --model claude-haiku-4-5-20251001 %*
+REM Ativar persona JARVIS
+set "JARVIS_PERSONA=1"
+
+REM Limpar NVIDIA vars conflitantes (local)
+set "HAS_NVIDIA="
+set "NVIDIA_API_KEY="
+set "NVIDIA_BASE_URL="
+set "OPENAI_BASE_URL="
+set "OPENAI_API_KEY="
+set "OPENAI_MODEL="
+
+REM Usar OpenClaude local com Claude/Anthropic como provider
+REM --bare desabilita worktrees, hooks, etc
+cd /d "%ROOT%"
+echo [haiku] Abrindo OpenClaude com Haiku 4.5 (Claude/Anthropic)...
+echo.
+node dist/cli.mjs --dangerously-skip-permissions --model claude-haiku-4-5-20251001 %*
 
 if errorlevel 1 (
     echo.

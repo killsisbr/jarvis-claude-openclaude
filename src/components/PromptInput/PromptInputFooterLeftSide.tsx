@@ -43,7 +43,7 @@ import { PrBadge } from '../PrBadge.js';
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule = false || false ? require('../../proactive/index.js') : null;
+const proactiveModule = require('../../proactive/index.js') as typeof import('../../proactive/index.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 const NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
 const NULL = () => null;

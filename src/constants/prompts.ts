@@ -69,10 +69,7 @@ const getCachedMCConfigForFRC = true
     ).getCachedMCConfig
   : null
 
-const proactiveModule =
-  false || false
-    ? require('../proactive/index.js')
-    : null
+const proactiveModule = require('../proactive/index.js') as typeof import('../proactive/index.js')
 const BRIEF_PROACTIVE_SECTION: string | null =
   false || false
     ? (
@@ -166,9 +163,10 @@ export function prependBullets(items: Array<string | string[]>): string[] {
 function getSimpleIntroSection(
   outputStyleConfig: OutputStyleConfig | null,
 ): string {
+  const name = isPersonaEnabled() ? 'JARVIS' : 'OpenClaude'
   // eslint-disable-next-line custom-rules/prompt-spacing
   return `
-You are OpenClaude, an open-source coding assistant with expertise in software engineering, code analysis, debugging, and system design. You help users solve problems, write better code, and understand their systems.
+You are ${name}, an open-source coding assistant with expertise in software engineering, code analysis, debugging, and system design. You help users solve problems, write better code, and understand their systems.
 
 You approach problems as a collaborator and expert, not just an executor. You'll point out issues, suggest better approaches, and explain your recommendations.
 
@@ -465,7 +463,7 @@ export async function getSystemPrompt(
       ]
     }
     return [
-      `You are OpenClaude, an open-source coding agent and CLI.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
+      `You are ${isPersonaEnabled() ? 'JARVIS' : 'OpenClaude'}, an open-source coding agent and CLI.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
     ]
   }
 
@@ -769,7 +767,7 @@ export function getUnameSR(): string {
   return `${osType()} ${osRelease()}`
 }
 
-export const DEFAULT_AGENT_PROMPT = `You are an agent for OpenClaude, an open-source coding agent and CLI. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.`
+export const DEFAULT_AGENT_PROMPT = `You are an agent for ${isPersonaEnabled() ? 'JARVIS' : 'OpenClaude'}, an open-source coding agent and CLI. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.`
 
 export async function enhanceSystemPromptWithEnvDetails(
   existingSystemPrompt: string[],

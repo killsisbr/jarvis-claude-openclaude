@@ -75,7 +75,8 @@ echo ============================================
 echo  JARVIS v5 - Provider Selector
 echo ============================================
 echo.
-echo  [0] Claude Pro/Max       [/login]
+echo  [0] Claude Pro/Max       [/login OAuth]
+echo  [H] Claude Haiku         [/login OAuth - rapido]
 set "N=1"
 if "!HAS_ZEN!"=="1"      ( set /a N+=1 & echo  [1] Zen OpenCode        [ONLINE] )
 if "!HAS_NVIDIA!"=="1"   ( set /a N+=1 & echo  [2] NVIDIA NIM           [ONLINE] )
@@ -85,15 +86,20 @@ if "!HAS_GROQ!"=="1"     ( set /a N+=1 & echo  [5] Groq LPU             [ONLINE]
 if "!HAS_OLLAMA!"=="1"   ( set /a N+=1 & echo  [6] Ollama Local          [ONLINE] )
 if "!HAS_GITHUB!"=="1"   ( set /a N+=1 & echo  [7] GitHub Models         [READY]  )
 echo.
+echo  [W] Worker HTTP         [daemon headless]
+echo  [N] Night Worker         [missoes autonomas]
 echo  [Q] Quit
 echo  [R] Rotate Mode        [auto-failover chain]
 echo.
 
-set /p "choice=Select provider [0-7/R/Q]: "
+set /p "choice=Select provider [0-7/W/N/R/Q]: "
 
 if /i "!choice!"=="Q" exit /b 0
+if /i "!choice!"=="H"                            call "%ROOT%haiku.bat" %* & goto :done
+if /i "!choice!"=="W"                            call "%ROOT%worker.bat" & goto :done
+if /i "!choice!"=="N"                            call "%ROOT%night-worker.bat" & goto :done
 if /i "!choice!"=="R"                            call "%ROOT%jarvis-rotate.bat" %* & goto :done
-if /i "!choice!"=="0"                          call "%ROOT%haiku.bat" & goto :done
+if /i "!choice!"=="0"                          call "%ROOT%claude.bat" & goto :done
 if /i "!choice!"=="1" if "!HAS_ZEN!"=="1"      call "%ROOT%jarvis.bat" zen      & goto :done
 if /i "!choice!"=="2" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia       & goto :done
 if /i "!choice!"=="3" if "!HAS_NVIDIA!"=="1"   call "%ROOT%jarvis.bat" nvidia-flash  & goto :done

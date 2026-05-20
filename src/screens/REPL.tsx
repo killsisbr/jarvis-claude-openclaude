@@ -193,11 +193,11 @@ import { restoreRemoteAgentTasks } from '../tasks/RemoteAgentTask/RemoteAgentTas
 import { useInboxPoller } from '../hooks/useInboxPoller.js';
 // Dead code elimination: conditional import for loop mode
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule = false || false ? require('../proactive/index.js') : null;
+const proactiveModule = require('../proactive/index.js') as typeof import('../proactive/index.js');
 const PROACTIVE_NO_OP_SUBSCRIBE = (_cb: () => void) => () => { };
 const PROACTIVE_FALSE = () => false;
 const SUGGEST_BG_PR_NOOP = (_p: string, _n: string): boolean => false;
-const useProactive = false || false ? require('../proactive/useProactive.js').useProactive : null;
+const useProactive = require('../proactive/useProactive.js').useProactive as typeof import('../proactive/useProactive.js').useProactive;
 const useScheduledTasks = require('../hooks/useScheduledTasks.js').useScheduledTasks;
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { isAgentSwarmsEnabled } from '../utils/agentSwarmsEnabled.js';
@@ -2148,9 +2148,7 @@ export function REPL({
 
     // Pause proactive mode so the user gets control back.
     // It will resume when they submit their next input (see onSubmit).
-    if (false || false) {
-      proactiveModule?.pauseProactive();
-    }
+    proactiveModule?.pauseProactive();
     queryGuard.forceEnd();
     skipIdleCheckRef.current = false;
 
@@ -2639,9 +2637,7 @@ export function REPL({
         // stale memoized rows remount with post-compact content.
         setConversationId(randomUUID());
         // Compaction succeeded — clear the context-blocked flag so ticks resume
-        if (false || false) {
-          proactiveModule?.setContextBlocked(false);
-        }
+        proactiveModule?.setContextBlocked(false);
       } else if (newMessage.type === 'progress' && isEphemeralToolProgress(newMessage.data.type)) {
         // Replace the previous ephemeral progress tick for the same tool
         // call instead of appending. Sleep/Bash emit a tick per second and
@@ -2668,12 +2664,10 @@ export function REPL({
       // Block ticks on API errors to prevent tick → error → tick
       // runaway loops (e.g., auth failure, rate limit, blocking limit).
       // Cleared on compact boundary (above) or successful response (below).
-      if (false || false) {
-        if (newMessage.type === 'assistant' && 'isApiErrorMessage' in newMessage && newMessage.isApiErrorMessage) {
-          proactiveModule?.setContextBlocked(true);
-        } else if (newMessage.type === 'assistant') {
-          proactiveModule?.setContextBlocked(false);
-        }
+      if (newMessage.type === 'assistant' && 'isApiErrorMessage' in newMessage && newMessage.isApiErrorMessage) {
+        proactiveModule?.setContextBlocked(true);
+      } else if (newMessage.type === 'assistant') {
+        proactiveModule?.setContextBlocked(false);
       }
     }, newContent => {
       // setResponseLength handles updating both responseLengthRef (for
@@ -2772,9 +2766,7 @@ export function REPL({
         // Bump conversationId so Messages.tsx row keys change and
         // stale memoized rows remount with post-compact content.
         setConversationId(randomUUID());
-        if (false || false) {
-          proactiveModule?.setContextBlocked(false);
-        }
+        proactiveModule?.setContextBlocked(false);
       }
       resetLoadingState();
       setAbortController(null);
@@ -2810,7 +2802,7 @@ export function REPL({
     const userContext = {
       ...baseUserContext,
       ...getCoordinatorUserContext(freshMcpClients, isScratchpadEnabled() ? getScratchpadDir() : undefined),
-      ...((false || false) && proactiveModule?.isProactiveActive() && !terminalFocusRef.current ? {
+      ...(proactiveModule?.isProactiveActive() && !terminalFocusRef.current ? {
         terminalFocus: 'The terminal is unfocused \u2014 the user is not actively watching.'
       } : {})
     };
@@ -3227,9 +3219,7 @@ export function REPL({
     repinScroll();
 
     // Resume loop mode if paused
-    if (false || false) {
-      proactiveModule?.resumeProactive();
-    }
+    proactiveModule?.resumeProactive();
 
     // Handle immediate commands - these bypass the queue and execute right away
     // even while Claude is processing. Commands opt-in via `immediate: true`.
@@ -5020,9 +5010,7 @@ export function REPL({
             }
             // Partial compact bypasses handleMessageFromStream — clear
             // the context-blocked flag so proactive ticks resume.
-            if (false || false) {
-              proactiveModule?.setContextBlocked(false);
-            }
+            proactiveModule?.setContextBlocked(false);
             setConversationId(randomUUID());
             runPostCompactCleanup(context.options.querySource);
             if (direction === 'from') {

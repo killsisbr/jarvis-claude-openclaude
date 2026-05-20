@@ -7,10 +7,7 @@ import { isQueuedCommandEditable } from 'src/utils/messageQueueManager.js'
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule =
-  false || false
-    ? require('../../proactive/index.js')
-    : null
+const proactiveModule = require('../../proactive/index.js') as typeof import('../../proactive/index.js')
 
 type Props = {
   input: string

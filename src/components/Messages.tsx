@@ -76,7 +76,7 @@ const LogoHeader = React.memo(function LogoHeader(t0) {
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule = false || false ? require('../proactive/index.js') : null;
+const proactiveModule = require('../proactive/index.js') as typeof import('../proactive/index.js');
 const BRIEF_TOOL_NAME: string | null = false || false ? (require('../tools/BriefTool/prompt.js') as typeof import('../tools/BriefTool/prompt.js')).BRIEF_TOOL_NAME : null;
 const SEND_USER_FILE_TOOL_NAME: string | null = false ? (require('../tools/SendUserFileTool/prompt.js') as typeof import('../tools/SendUserFileTool/prompt.js')).SEND_USER_FILE_TOOL_NAME : null;
 

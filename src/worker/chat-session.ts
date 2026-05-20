@@ -149,7 +149,7 @@ export class ChatSession extends EventEmitter {
       ANALISANDO: ["ATIVO", "COMPLETO", "FECHADO"],
       ATIVO: ["AGUARDANDO", "COMPLETO", "FECHADO"],
       AGUARDANDO: ["ATIVO", "COMPLETO", "FECHADO"],
-      COMPLETO: ["FECHADO"],
+      COMPLETO: ["FECHADO", "ANALISANDO", "ATIVO"],
       FECHADO: ["CRIADO"],
     };
 

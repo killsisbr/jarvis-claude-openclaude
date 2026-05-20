@@ -2,16 +2,46 @@
  * server — Express HTTP para o JARVIS Worker.
  *
  * Rotas:
- *   GET  /health         → status do worker
- *   POST /api/chat       → enviar mensagem e receber resposta
- *   GET  /api/cost       → custo do dia + estatísticas
- *   GET  /api/keys       → status dos pools de chave
+ *   GET  /health                    → status do worker
+ *   POST /api/chat                  → enviar mensagem e receber resposta
+ *   GET  /api/cost                  → custo do dia + estatísticas
+ *   GET  /api/keys                  → status dos pools de chave
+ *   POST /api/mission               → criar e iniciar missão autônoma
+ *   GET  /api/mission               → listar missões (?status=running)
+ *   GET  /api/mission/:id           → detalhes de uma missão
+ *   GET  /api/mission/:id/report    → relatório markdown da missão
+ *   POST /api/mission/:id/cancel    → cancelar missão em andamento
  */
 
 import express, { type Request, type Response, type NextFunction } from 'express'
 import type { JarvisWorker } from './worker-core.ts'
 import type { MessageDispatcher } from './dispatcher.ts'
 import type { SandboxManager } from './sandbox.ts'
+import { NightWorker, type MissionStatus } from './night-worker.ts'
+
+let nightWorker: NightWorker | null = null
+
+function getNightWorker(worker: JarvisWorker): NightWorker {
+  if (!nightWorker) {
+    nightWorker = new NightWorker({
+      llmCall: async (systemPrompt, userPrompt) => {
+        const result = await worker.processPrompt(
+          `[SYSTEM]\n${systemPrompt}\n\n[USER]\n${userPrompt}`,
+          'night-worker',
+        )
+        return {
+          text: result.reply,
+          tokens: (result.tokens?.input ?? 0) + (result.tokens?.output ?? 0),
+          cost: result.cost,
+        }
+      },
+      maxRetries: 2,
+      budgetDefault: 50.0,
+      reportsDir: require('node:path').join(require('node:os').homedir(), '.jarvis', 'night-worker-reports'),
+    })
+  }
+  return nightWorker
+}
 
 export function createServer(
   worker: JarvisWorker,
@@ -644,6 +674,129 @@ export function createServer(
     try {
       const stats = getDocumentationStats()
       res.json(stats)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  // ── Night Worker: Missions ─────────────────────────────────────────────────
+
+  app.post('/api/mission', async (req: Request, res: Response) => {
+    const { title, description, workingDir, budgetLimit } = req.body as {
+      title?: string
+      description?: string
+      workingDir?: string
+      budgetLimit?: number
+    }
+
+    if (!title || typeof title !== 'string') {
+      res.status(400).json({ error: 'Campo "title" obrigatório (string).' })
+      return
+    }
+    if (!description || typeof description !== 'string') {
+      res.status(400).json({ error: 'Campo "description" obrigatório (string).' })
+      return
+    }
+    if (!workingDir || typeof workingDir !== 'string') {
+      res.status(400).json({ error: 'Campo "workingDir" obrigatório (string).' })
+      return
+    }
+
+    try {
+      const nw = getNightWorker(worker)
+      const mission = nw.createMission(title, description, workingDir, budgetLimit)
+
+      nw.executeMission(mission.id).catch((err) => {
+        console.error(`[night-worker] Background execution failed: ${err.message}`)
+      })
+
+      res.status(201).json({
+        id: mission.id,
+        title: mission.title,
+        status: mission.status,
+        budgetLimit: mission.budgetLimit,
+        message: 'Mission queued and execution started in background.',
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get('/api/mission', (_req: Request, res: Response) => {
+    const status = (_req.query.status as string as MissionStatus) || undefined
+
+    try {
+      const nw = getNightWorker(worker)
+      const missions = nw.listMissions(status)
+      res.json({
+        missions: missions.map((m) => ({
+          id: m.id,
+          title: m.title,
+          status: m.status,
+          currentPhase: m.currentPhase,
+          totalPhases: m.totalPhases,
+          costTotal: round(m.costTotal),
+          budgetLimit: m.budgetLimit,
+          createdAt: m.createdAt,
+          completedAt: m.completedAt,
+        })),
+        total: missions.length,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get('/api/mission/:id', (req: Request, res: Response) => {
+    try {
+      const nw = getNightWorker(worker)
+      const mission = nw.getMission(req.params.id as string)
+      if (!mission) {
+        res.status(404).json({ error: 'Mission not found' })
+        return
+      }
+      res.json(mission)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get('/api/mission/:id/report', async (req: Request, res: Response) => {
+    try {
+      const nw = getNightWorker(worker)
+      const mission = nw.getMission(req.params.id as string)
+      if (!mission) {
+        res.status(404).json({ error: 'Mission not found' })
+        return
+      }
+      if (!mission.reportPath) {
+        res.status(404).json({ error: 'Report not yet generated', status: mission.status })
+        return
+      }
+
+      const fs = require('node:fs/promises')
+      const report = await fs.readFile(mission.reportPath, 'utf-8')
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+      res.send(report)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.post('/api/mission/:id/cancel', (req: Request, res: Response) => {
+    try {
+      const nw = getNightWorker(worker)
+      const cancelled = nw.cancelMission(req.params.id as string)
+      if (!cancelled) {
+        res.status(400).json({ error: 'Mission cannot be cancelled (already completed/cancelled or not found)' })
+        return
+      }
+      res.json({ success: true, message: 'Mission cancelled' })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       res.status(500).json({ error: msg })
