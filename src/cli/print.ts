@@ -358,9 +358,7 @@ const coordinatorModeModule = true
   ? (require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js'))
   : null
 const proactiveModule =
-  false || false
-    ? (require('../proactive/index.js') as typeof import('../proactive/index.js'))
-    : null
+  (require('../proactive/index.js') as typeof import('../proactive/index.js'))
 const cronSchedulerModule = require('../utils/cronScheduler.js') as typeof import('../utils/cronScheduler.js')
 const cronJitterConfigModule = require('../utils/cronJitterConfig.js') as typeof import('../utils/cronJitterConfig.js')
 const cronGate = require('../tools/ScheduleCronTool/prompt.js') as typeof import('../tools/ScheduleCronTool/prompt.js')
@@ -529,7 +527,6 @@ export async function runHeadless(
   // where CLAUDE_CODE_PROACTIVE is set but main.tsx's check didn't fire
   // (e.g. env was injected by the SDK transport after argv parsing).
   if (
-    (false || false) &&
     proactiveModule &&
     !proactiveModule.isProactiveActive() &&
     isEnvTruthy(process.env.CLAUDE_CODE_PROACTIVE)
@@ -1824,29 +1821,26 @@ function runHeadlessStreaming(
   // Proactive mode: schedule a tick to keep the model looping autonomously.
   // setTimeout(0) yields to the event loop so pending stdin messages
   // (interrupts, user messages) are processed before the tick fires.
-  const scheduleProactiveTick =
-    false || false
-      ? () => {
-          setTimeout(() => {
-            if (
-              !proactiveModule?.isProactiveActive() ||
-              proactiveModule.isProactivePaused() ||
-              inputClosed
-            ) {
-              return
-            }
-            const tickContent = `<${TICK_TAG}>${new Date().toLocaleTimeString()}</${TICK_TAG}>`
-            enqueue({
-              mode: 'prompt' as const,
-              value: tickContent,
-              uuid: randomUUID(),
-              priority: 'later',
-              isMeta: true,
-            })
-            void run()
-          }, 0)
-        }
-      : undefined
+  const scheduleProactiveTick = () => {
+    setTimeout(() => {
+      if (
+        !proactiveModule?.isProactiveActive() ||
+        proactiveModule.isProactivePaused() ||
+        inputClosed
+      ) {
+        return
+      }
+      const tickContent = `<${TICK_TAG}>${new Date().toLocaleTimeString()}</${TICK_TAG}>`
+      enqueue({
+        mode: 'prompt' as const,
+        value: tickContent,
+        uuid: randomUUID(),
+        priority: 'later',
+        isMeta: true,
+      })
+      void run()
+    }, 0)
+  }
 
   // Abort the current operation when a 'now' priority message arrives.
   subscribeToCommandQueue(() => {
@@ -2466,13 +2460,14 @@ function runHeadlessStreaming(
     }
 
     // Proactive tick: if proactive is active and queue is empty, inject a tick
+    // Only inject if shouldTick() returns true (respects 30s interval)
     if (
-      (false || false) &&
       proactiveModule?.isProactiveActive() &&
-      !proactiveModule.isProactivePaused()
+      !proactiveModule.isProactivePaused() &&
+      proactiveModule.shouldTick?.()
     ) {
       if (peek(isMainThread) === undefined && !inputClosed) {
-        scheduleProactiveTick!()
+        scheduleProactiveTick()
         return
       }
     }
@@ -3859,7 +3854,6 @@ function runHeadlessStreaming(
             }
           })()
         } else if (
-          (false || false) &&
           (message.request as { subtype: string }).subtype === 'set_proactive'
         ) {
           const req = message.request as unknown as {
