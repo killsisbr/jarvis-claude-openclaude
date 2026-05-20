@@ -2,15 +2,16 @@
 setlocal enabledelayedexpansion
 
 REM =============================================================
-REM  claude-official.bat - Claude Oficial (isolado do JARVIS)
+REM  claude-official.bat - Claude Official com Haiku (isolado)
 REM
-REM  Roda OpenClaude como cliente vanilla Anthropic,
+REM  Roda OpenClaude como cliente vanilla Anthropic com Haiku 4.5,
 REM  completamente isolado das customizacoes JARVIS:
 REM  - Sem JARVIS_PERSONA
 REM  - Sem proactive mode
 REM  - Sem worker mode
 REM  - Sem rotate chain
 REM  - Sem variaveis customizadas
+REM  - Modelo: Claude Haiku 4.5 (rapido + barato)
 REM
 REM  Autentica via OAuth (/login) ou ANTHROPIC_API_KEY se definida
 REM  Nao carrega .env do projeto
@@ -142,7 +143,11 @@ REM   - Keychain reads
 REM
 REM Resultado: OpenClaude puro, zero customizacao
 
-node dist/cli.mjs --bare %*
+node dist/cli.mjs ^
+  --bare ^
+  --dangerously-skip-permissions ^
+  --model claude-haiku-4-5-20251001 ^
+  %*
 
 if errorlevel 1 (
     echo.
