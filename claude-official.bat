@@ -82,7 +82,7 @@ echo  Modelo: Haiku 4.5
 echo  Auth: OAuth (/login)
 echo.
 
-REM Rodar app official
-start "" "!CLAUDE_PATH!" --model claude-haiku-4-5-20251001 %*
+REM Rodar app official (sem flags - app Electron nao aceita --model)
+start "" "!CLAUDE_PATH!"
 
 endlocal
