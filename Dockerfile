@@ -1,33 +1,44 @@
-# JARVIS Worker — Multi-stage Docker build
-# Stage 1: Builder (compile dependencies)
+# Build stage
 FROM oven/bun:latest AS builder
+
 WORKDIR /app
 
-# Copy manifest and install frozen dependencies
+# Copiar arquivos
 COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts ./scripts
 
-# Stage 2: Runtime (minimal image)
+# Build
+RUN bun install --production
+RUN bun run build
+
+# Runtime stage
 FROM oven/bun:latest
+
 WORKDIR /app
 
-# Copy dependencies from builder
-COPY --from=builder /app/node_modules ./node_modules
+# Criar usuário não-root
+RUN useradd -m -s /bin/bash jarvis && \
+    mkdir -p /home/jarvis/.jarvis && \
+    chown -R jarvis:jarvis /home/jarvis
 
-# Copy source code
-COPY src ./src
-COPY package.json ./
+# Copiar apenas o necessário do builder
+COPY --from=builder --chown=jarvis:jarvis /app/dist ./dist
+COPY --from=builder --chown=jarvis:jarvis /app/node_modules ./node_modules
+COPY --from=builder --chown=jarvis:jarvis /app/package.json ./
 
-# Runtime configuration
-ENV NODE_ENV=production \
-    WORKER_PORT=6666
+# Diretórios para dados persistentes
+VOLUME ["/home/jarvis/.jarvis"]
+
+# Rodar como usuário não-root
+USER jarvis
+
+EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -f http://localhost:6666/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
+  CMD curl -f http://localhost:3000/health || exit 1
 
-# Expose port
-EXPOSE 6666
-
-# Entrypoint
-CMD ["bun", "run", "src/worker/main.ts"]
+# Start worker
+CMD ["bun", "dist/cli.mjs", "--dangerously-skip-permissions"]

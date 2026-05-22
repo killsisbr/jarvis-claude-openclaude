@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   jarvis-worker:
@@ -7,37 +7,47 @@ services:
       dockerfile: Dockerfile
     container_name: jarvis-worker
     ports:
-      - "6666:6666"
-    volumes:
-      # Persist SQLite database + Baileys WhatsApp session
-      - ~/.jarvis:/root/.jarvis
-      # Dev mode: auto-reload source code
-      - ./src:/app/src:cached
+      - "3000:3000"
     environment:
-      - WORKER_PORT=6666
+      - WORKER_PORT=3000
       - NODE_ENV=production
-      # API Keys (load from .env or set here)
+      # Copiar seus .env vars aqui:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      - OPENAI_MODEL=${OPENAI_MODEL:-claude-3-5-sonnet-20241022}
-      # Provider rotation chain
-      - ROTATE_CHAIN=${ROTATE_CHAIN:-zen}
-      - ROTATE_MODE=${ROTATE_MODE:-0}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - JARVIS_SYSTEM_PROMPT=${JARVIS_SYSTEM_PROMPT:-}
+    volumes:
+      # Diretório para salvar missões/logs (persiste entre restarts)
+      - jarvis-data:/home/jarvis/.jarvis
+      # (OPCIONAL) Se quer que worker leia seus projetos em read-only
+      # - /home/ubuntu/crm-venda:/data/crm-venda:ro
+      # - /home/ubuntu/minecraft-plugins:/data/minecraft-plugins:ro
     restart: unless-stopped
+    resources:
+      limits:
+        cpus: '1'
+        memory: 2G
+      reservations:
+        cpus: '0.5'
+        memory: 1G
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6666/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 40s
+    networks:
+      - jarvis-net
     logging:
       driver: "json-file"
       options:
-        max-size: "100m"
-        max-file: "10"
+        max-size: "10m"
+        max-file: "3"
 
-# Network for inter-service communication
+volumes:
+  jarvis-data:
+    driver: local
+
 networks:
-  default:
-    name: jarvis-network
+  jarvis-net:
     driver: bridge
