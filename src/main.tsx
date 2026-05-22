@@ -3813,13 +3813,14 @@ async function run(): Promise<CommanderCommand> {
   if (true) {
     program.addOption(new Option('--enable-auto-mode', 'Opt in to auto mode').hideHelp());
   }
-  if (false || false) {
+  if (true) {
     program.addOption(new Option('--proactive', 'Start in proactive autonomous mode'));
   }
   if (false) {
     program.addOption(new Option('--messaging-socket-path <path>', 'Unix domain socket path for the UDS messaging server (defaults to a tmp path)'));
   }
   if (false || false) {
+    // BRIEF: Enterprise feature — not available in OpenClaude fork
     program.addOption(new Option('--brief', 'Enable SendUserMessage tool for agent-to-user communication'));
   }
   if (false) {

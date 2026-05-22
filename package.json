@@ -4,7 +4,8 @@
   "description": "JARVIS v5 — Zero-Telemetry coding agent forked from OpenClaude. Supports OpenAI, Gemini, DeepSeek, Ollama, and 200+ models.",
   "type": "module",
   "bin": {
-    "jarvis": "./bin/jarvis"
+    "jarvis": "./bin/jarvis",
+    "claude": "./bin/claude"
   },
   "exports": {
     "./package.json": "./package.json",
