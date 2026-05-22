@@ -22,12 +22,10 @@ export function initBundledSkills(): void {
   registerDebugSkill()
   registerSimplifySkill()
   registerBatchSkill()
-  if (false || false) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerDreamSkill } = require('./dream.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    registerDreamSkill()
-  }
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const { registerDreamSkill } = require('./dream.js')
+  /* eslint-enable @typescript-eslint/no-require-imports */
+  registerDreamSkill()
   if (false) {
     /* eslint-disable @typescript-eslint/no-require-imports */
     const { registerHunterSkill } = require('./hunter.js')

@@ -365,11 +365,7 @@ export function isQueuedCommandEditable(cmd: QueuedCommand): boolean {
  * sees what arrived) but stay non-editable (raw XML).
  */
 export function isQueuedCommandVisible(cmd: QueuedCommand): boolean {
-  if (
-    (false || false) &&
-    cmd.origin?.kind === 'channel'
-  )
-    return true
+  if (cmd.origin?.kind === 'channel') return true
   return isQueuedCommandEditable(cmd)
 }
 
