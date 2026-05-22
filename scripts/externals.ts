@@ -25,6 +25,10 @@ export const COMMON_EXTERNALS: string[] = [
   // Orama search engine
   '@orama/orama',
   '@orama/plugin-data-persistence',
+  // VPS deployment tools (used by deploy scripts, not bundled)
+  'ssh2',
+  'adm-zip',
+  'dotenv',
 ]
 
 // Additional packages external only in the SDK bundle (TUI + heavy deps)

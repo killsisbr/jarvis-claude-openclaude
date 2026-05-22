@@ -184,11 +184,11 @@ conn.on('ready', () => {
                 // 4. Remover ZIP
                 `rm -f "${remoteZipPath}"`,
 
-                // 5. Instalar dependências
-                `cd "${env.dir}" && bun install --production`,
+                // 5. Instalar dependências (export PATH no mesmo comando)
+                `export PATH="/root/.bun/bin:$PATH"; cd "${env.dir}" && bun install`,
 
-                // 6. Build
-                `cd "${env.dir}" && bun run build`,
+                // 6. Build (export PATH no mesmo comando)
+                `export PATH="/root/.bun/bin:$PATH"; cd "${env.dir}" && bun run build`,
 
                 // 7. Restart PM2
                 `pm2 restart "${env.pm2}" || pm2 start "bun run worker" --name "${env.pm2}" --cwd "${env.dir}"`,
