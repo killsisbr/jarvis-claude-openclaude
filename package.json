@@ -71,7 +71,8 @@
     "worker:dev": "WORKER_PORT=3000 bun run --watch src/worker/main.ts",
     "deploy-worker": "node tools/deploy-jarvis-worker.cjs",
     "deploy-worker:staging": "node tools/deploy-jarvis-worker.cjs staging",
-    "deploy-worker:prod": "node tools/deploy-jarvis-worker.cjs production"
+    "deploy-worker:prod": "node tools/deploy-jarvis-worker.cjs production",
+    "test-vps": "node tools/test-vps-status.cjs"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "0.3.0",
