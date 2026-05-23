@@ -52,6 +52,13 @@ REM Ativar persona JARVIS
 set "JARVIS_PERSONA=1"
 
 REM ===========================================================================
+REM OTIMIZAÇÕES DE TOKENS (habilitadas por default no JARVIS)
+REM ===========================================================================
+
+REM Thinking estendido com budget razoável (16K tokens)
+if not defined MAX_THINKING_TOKENS set "MAX_THINKING_TOKENS=16000"
+
+REM ===========================================================================
 REM ABRIR OPENCLAUDE COM CLAUDE
 REM ===========================================================================
 

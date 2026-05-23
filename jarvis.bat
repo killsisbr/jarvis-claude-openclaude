@@ -167,5 +167,12 @@ goto :launch
 :launch
 REM Suppress Codex profile auto-detection (JARVIS manages its own provider)
 if not defined CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED set "CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED=1"
+
+REM ===========================================================================
+REM OTIMIZAÇÕES DE TOKENS (JARVIS defaults)
+REM ===========================================================================
+REM Thinking estendido com budget razoável (16K tokens de raciocínio)
+if not defined MAX_THINKING_TOKENS set "MAX_THINKING_TOKENS=16000"
+
 node "%ROOT%bin\jarvis" --dangerously-skip-permissions %PASS_ARGS%
 exit /b %errorlevel%
