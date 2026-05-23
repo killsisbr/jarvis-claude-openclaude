@@ -22,16 +22,9 @@ export function initBundledSkills(): void {
   registerDebugSkill()
   registerSimplifySkill()
   registerBatchSkill()
-  /* eslint-disable @typescript-eslint/no-require-imports */
-  const { registerDreamSkill } = require('./dream.js')
-  /* eslint-enable @typescript-eslint/no-require-imports */
-  registerDreamSkill()
-  if (false) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerHunterSkill } = require('./hunter.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    registerHunterSkill()
-  }
+  // dream.ts was removed/gated upstream — skip to avoid missing-module-stub crash
+  // registerDreamSkill()
+  // hunter.ts is gated (if false) — skip
   // /loop's isEnabled delegates to isKairosCronEnabled() — registered
   // unconditionally so the static import is bundled; visibility is gated
   // at runtime by the isEnabled callback.
