@@ -3406,8 +3406,11 @@ export function adjustParamsForNonStreaming<
 }
 
 function isMaxTokensCapEnabled(): boolean {
-  // 3P default: false (not validated on Bedrock/Vertex)
-  return false
+  // Slot-reservation optimization: cap default output to 8K instead of 32-64K.
+  // BQ p99 output = 4,911 tokens — reserving 32-64K wastes 8-16x slot capacity.
+  // Requests that hit the cap get one clean retry at 64K (query.ts escalate).
+  // Enabled unconditionally — safe for all providers (output stays within model limits).
+  return true
 }
 
 export function getMaxOutputTokensForModel(model: string): number {

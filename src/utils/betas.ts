@@ -317,7 +317,7 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   const strictToolsEnabled = false
   // 3P default: false. API rejects strict + token-efficient-tools together
   // (tool_use.py:139), so these are mutually exclusive — strict wins.
-  const tokenEfficientToolsEnabled = false
+  const tokenEfficientToolsEnabled = true
   if (
     includeFirstPartyOnlyBetas &&
     modelSupportsStructuredOutputs(model) &&
@@ -326,11 +326,8 @@ export const getAllModelBetas = memoize((model: string): string[] => {
     betaHeaders.push(STRUCTURED_OUTPUTS_BETA_HEADER)
   }
   // JSON tool_use format (FC v3) — ~4.5% output token reduction vs ANTML.
-  // Sends the v2 header (2026-03-28) added in anthropics/anthropic#337072 to
-  // isolate the CC A/B cohort from ~9.2M/week existing v1 senders. Ant-only
-  // while the restored JsonToolUseOutputParser soaks.
+  // JARVIS: enabled for all users (upstream was ant-only during A/B soak).
   if (
-    process.env.USER_TYPE === 'ant' &&
     includeFirstPartyOnlyBetas &&
     tokenEfficientToolsEnabled
   ) {
