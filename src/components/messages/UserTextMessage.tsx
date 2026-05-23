@@ -186,7 +186,9 @@ export function UserTextMessage(t0) {
     }
     return t1;
   }
-  if (true) {
+  // UserForkBoilerplateMessage.js is a missing-module-stub — disabled to prevent crash
+  // (module doesn't exist in source tree; bundler generates a noop stub)
+  if (false) {
     if (param.text.includes("<fork-boilerplate>")) {
       let t1;
       if ($[32] === Symbol.for("react.memo_cache_sentinel")) {

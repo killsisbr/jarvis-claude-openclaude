@@ -354,15 +354,25 @@ export const createClaudeForChromeMcpServer = noop;
           function walk(dir: string) {
             for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
               const full = pathMod.join(dir, ent.name)
-              if (ent.isDirectory()) { walk(full); continue }
+              if (ent.isDirectory()) {
+                // Skip test directories — they're not bundled and their
+                // string-literal import patterns cause false-positive stubs
+                // (e.g. security-hardening.test.ts has import-like strings
+                //  that resolve to wrong paths from __tests__/ directory)
+                if (ent.name === '__tests__' || ent.name === '__mocks__') continue
+                walk(full); continue
+              }
+              // Skip test files — not bundled, and can contain import-like
+              // strings that cause false-positive missing module detection
+              if (/\.test\.(ts|tsx)$/.test(ent.name)) continue
               if (!/\.(ts|tsx)$/.test(ent.name)) continue
               const rawCode: string = fs.readFileSync(full, 'utf-8')
               const fileDir = pathMod.dirname(full)
 
-              // Strip comments before scanning for imports/requires.
-              // The regex scanner matches require()/import() patterns
-              // inside JSDoc comments, causing false-positive missing
-              // module detection that breaks the build with noop stubs.
+              // Strip comments and string literals before scanning for imports.
+              // The regex scanner matches require()/import() patterns inside
+              // JSDoc comments and string literals, causing false-positive
+              // missing module detection that breaks the build with noop stubs.
               const code = rawCode
                 .replace(/\/\*[\s\S]*?\*\//g, '')  // block comments
                 .replace(/\/\/.*$/gm, '')           // line comments

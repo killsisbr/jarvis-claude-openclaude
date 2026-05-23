@@ -115,7 +115,8 @@ const peersCmd = false
       require('./commands/peers/index.js') as typeof import('./commands/peers/index.js')
     ).default
   : null
-const forkCmd = true
+// fork/index.js doesn't exist in source — disabled to prevent missing-module-stub crash
+const forkCmd = false
   ? (
       require('./commands/fork/index.js') as typeof import('./commands/fork/index.js')
     ).default
