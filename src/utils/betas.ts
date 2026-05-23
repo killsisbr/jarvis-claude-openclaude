@@ -266,8 +266,10 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   // renders those as a stub. SDK / print-mode keep summaries because callers
   // may iterate over thinking content. Users can opt back in via settings.json
   // showThinkingSummaries.
+  // JARVIS: enabled independently of DISABLE_EXPERIMENTAL_BETAS — redacted
+  // thinking saves significant context tokens (no summaries to carry forward).
   if (
-    includeFirstPartyOnlyBetas &&
+    (getAPIProvider() === 'firstParty' || getAPIProvider() === 'foundry') &&
     modelSupportsISP(model) &&
     !getIsNonInteractiveSession() &&
     getInitialSettings().showThinkingSummaries !== true
@@ -295,7 +297,10 @@ export const getAllModelBetas = memoize((model: string): string[] => {
     betaHeaders.push(SUMMARIZE_CONNECTOR_TEXT_BETA_HEADER)
   }
 
-  // Add context management beta for tool clearing (ant opt-in) or thinking preservation
+  // Add context management beta for tool clearing or thinking preservation.
+  // JARVIS: thinking preservation is essential for all 1P users — it prevents
+  // thinking blocks from being lost during compaction. Enabled independently
+  // of DISABLE_EXPERIMENTAL_BETAS since it only adds a header (no schema changes).
   const antOptedIntoToolClearing =
     isEnvTruthy(process.env.USE_API_CONTEXT_MANAGEMENT) &&
     process.env.USER_TYPE === 'ant'
@@ -303,7 +308,7 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   const thinkingPreservationEnabled = modelSupportsContextManagement(model)
 
   if (
-    shouldIncludeFirstPartyOnlyBetas() &&
+    (getAPIProvider() === 'firstParty' || getAPIProvider() === 'foundry') &&
     (antOptedIntoToolClearing || thinkingPreservationEnabled)
   ) {
     betaHeaders.push(CONTEXT_MANAGEMENT_BETA_HEADER)

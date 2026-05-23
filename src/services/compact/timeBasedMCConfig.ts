@@ -28,7 +28,10 @@ export type TimeBasedMCConfig = {
 }
 
 const TIME_BASED_MC_CONFIG_DEFAULTS: TimeBasedMCConfig = {
-  enabled: false,
+  // JARVIS: enabled by default. When the gap since last assistant message
+  // exceeds gapThresholdMinutes, the server cache is cold anyway — clearing
+  // old tool results shrinks the prefix that gets rewritten, saving tokens.
+  enabled: true,
   gapThresholdMinutes: 60,
   keepRecent: 5,
 }

@@ -427,9 +427,9 @@ These user-facing text instructions do NOT apply to code or tool calls.`
 function getSimpleToneAndStyleSection(): string {
   const items = [
     `Only use emojis if the user explicitly requests it. Avoid using emojis in all communication unless asked.`,
-    process.env.USER_TYPE === 'ant'
-      ? null
-      : `Your responses should be short and concise.`,
+    // Replaced by numeric_length_anchors section (quantitative limits are
+    // ~1.2% more token-efficient than qualitative "be concise").
+    null,
     `When referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.`,
     `When referencing GitHub issues or pull requests, use the owner/repo#123 format (e.g. anthropics/claude-code#100) so they render as clickable links.`,
     `Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`,
@@ -539,16 +539,12 @@ ${CYBER_RISK_INSTRUCTION}`,
       () => SUMMARIZE_TOOL_RESULTS_SECTION,
     ),
     // Numeric length anchors — research shows ~1.2% output token reduction vs
-    // qualitative "be concise". Ant-only to measure quality impact first.
-    ...(process.env.USER_TYPE === 'ant'
-      ? [
-          systemPromptSection(
-            'numeric_length_anchors',
-            () =>
-              'Length limits: keep text between tool calls to \u226425 words. Keep final responses to \u2264100 words unless the task requires more detail.',
-          ),
-        ]
-      : []),
+    // qualitative "be concise". JARVIS: enabled for all users.
+    systemPromptSection(
+      'numeric_length_anchors',
+      () =>
+        'Length limits: keep text between tool calls to ≤25 words. Keep final responses to ≤100 words unless the task requires more detail.',
+    ),
     ...(true
       ? [
           // Cached unconditionally — the "When the user specifies..." phrasing
