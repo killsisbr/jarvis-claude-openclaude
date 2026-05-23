@@ -1330,9 +1330,11 @@ async function* queryLoop(
         // multi-turn dance. This fires once per turn (guarded by the
         // override check), then falls through to multi-turn recovery if
         // 64k also hits the cap.
-        // 3P default: false (not validated on Bedrock/Vertex)
+        // JARVIS: enabled — essential companion to isMaxTokensCapEnabled().
+        // When the 8K cap is hit, retry silently at 64K instead of injecting
+        // a multi-turn recovery message (which costs a full extra API call).
         if (
-          false &&
+          true &&
           maxOutputTokensOverride === undefined &&
           !process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
         ) {
