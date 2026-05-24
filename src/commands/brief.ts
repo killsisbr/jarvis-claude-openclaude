@@ -26,7 +26,7 @@ const briefConfigSchema = lazySchema(() =>
 type BriefConfig = z.infer<ReturnType<typeof briefConfigSchema>>
 
 const DEFAULT_BRIEF_CONFIG: BriefConfig = {
-  enable_slash_command: false,
+  enable_slash_command: true, // JARVIS: enabled by default (was false, gated by GB)
 }
 
 // No TTL — this gate controls slash-command *visibility*, not a kill switch.
@@ -48,10 +48,9 @@ const brief = {
   name: 'brief',
   description: 'Toggle brief-only mode',
   isEnabled: () => {
-    if (false || false) {
-      return getBriefConfig().enable_slash_command
-    }
-    return false
+    // JARVIS: Brief slash command enabled for all users (was feature('KAIROS') || feature('KAIROS_BRIEF')).
+    // GB config still checked as kill switch when available, defaults to enabled.
+    return getBriefConfig().enable_slash_command ?? true
   },
   immediate: true,
   load: () =>

@@ -84,7 +84,11 @@ const KAIROS_BRIEF_REFRESH_MS = 5 * 60 * 1000
  * the env var alone also sets userMsgOptIn via maybeActivateBrief().
  */
 export function isBriefEntitled(): boolean {
-  return false
+  // JARVIS: Brief tool enabled for all users (was feature('KAIROS_BRIEF')).
+  // Env var CLAUDE_CODE_BRIEF=1 also grants entitlement (upstream dev bypass).
+  // CLAUDE_CODE_DISABLE_BRIEF=1 disables it explicitly.
+  if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_BRIEF)) return false
+  return true
 }
 
 /**
@@ -112,13 +116,11 @@ export function isBriefEntitled(): boolean {
  * caller reaches here.
  */
 export function isBriefEnabled(): boolean {
-  // Top-level feature() guard is load-bearing for DCE: Bun can constant-fold
-  // the ternary to `false` in external builds and then dead-code the BriefTool
-  // object. Composing isBriefEntitled() alone (which has its own guard) is
-  // semantically equivalent but defeats constant-folding across the boundary.
-  return false || false
-    ? (getKairosActive() || getUserMsgOptIn()) && isBriefEntitled()
-    : false
+  // JARVIS: Removed dead feature('KAIROS') || feature('KAIROS_BRIEF') gate.
+  // Brief is enabled when entitled AND user has opted in (--brief, defaultView,
+  // CLAUDE_CODE_BRIEF env, or kairosActive). The entitlement check in
+  // isBriefEntitled() serves as the kill switch.
+  return (getKairosActive() || getUserMsgOptIn()) && isBriefEntitled()
 }
 
 export const BriefTool = buildTool({

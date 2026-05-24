@@ -3,20 +3,12 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/gr
 import type { Tool } from '../../Tool.js'
 import { AGENT_TOOL_NAME } from '../AgentTool/constants.js'
 
-// Dead code elimination: Brief tool name only needed when KAIROS or KAIROS_BRIEF is on
+// JARVIS: Brief tool name resolved directly (was gated by feature('KAIROS') || feature('KAIROS_BRIEF'))
 /* eslint-disable @typescript-eslint/no-require-imports */
 const BRIEF_TOOL_NAME: string | null =
-  false || false
-    ? (
-        require('../BriefTool/prompt.js') as typeof import('../BriefTool/prompt.js')
-      ).BRIEF_TOOL_NAME
-    : null
-const SEND_USER_FILE_TOOL_NAME: string | null = false
-  ? (
-      require('../SendUserFileTool/prompt.js') as typeof import('../SendUserFileTool/prompt.js')
-    ).SEND_USER_FILE_TOOL_NAME
-  : null
-
+  (require('../BriefTool/prompt.js') as typeof import('../BriefTool/prompt.js')).BRIEF_TOOL_NAME
+// SendUserFileTool not included in open build (source not mirrored)
+const SEND_USER_FILE_TOOL_NAME: string | null = null
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export { TOOL_SEARCH_TOOL_NAME } from './constants.js'
@@ -75,11 +67,9 @@ export function isDeferredTool(tool: Tool): boolean {
   // see without a ToolSearch round-trip. No runtime gate needed here: this
   // tool's isEnabled() IS isBriefEnabled(), so being asked about its deferral
   // status implies the gate already passed.
-  if (
-    (false || false) &&
-    BRIEF_TOOL_NAME &&
-    tool.name === BRIEF_TOOL_NAME
-  ) {
+  // JARVIS: Brief tool should never be deferred (was gated by feature('KAIROS') || feature('KAIROS_BRIEF')).
+  // Its prompt contains the text-visibility contract the model must see immediately.
+  if (BRIEF_TOOL_NAME && tool.name === BRIEF_TOOL_NAME) {
     return false
   }
 

@@ -70,16 +70,12 @@ const getCachedMCConfigForFRC = true
   : null
 
 const proactiveModule = require('../proactive/index.js') as typeof import('../proactive/index.js')
+// JARVIS: Brief module loaded directly (was gated by feature('KAIROS') || feature('KAIROS_BRIEF')).
 const BRIEF_PROACTIVE_SECTION: string | null =
-  false || false
-    ? (
-        require('../tools/BriefTool/prompt.js') as typeof import('../tools/BriefTool/prompt.js')
-      ).BRIEF_PROACTIVE_SECTION
-    : null
+  (require('../tools/BriefTool/prompt.js') as typeof import('../tools/BriefTool/prompt.js'))
+    .BRIEF_PROACTIVE_SECTION
 const briefToolModule =
-  false || false
-    ? (require('../tools/BriefTool/BriefTool.js') as typeof import('../tools/BriefTool/BriefTool.js'))
-    : null
+  require('../tools/BriefTool/BriefTool.js') as typeof import('../tools/BriefTool/BriefTool.js')
 const DISCOVER_SKILLS_TOOL_NAME: string | null = false
   ? (
       require('../tools/DiscoverSkillsTool/prompt.js') as typeof import('../tools/DiscoverSkillsTool/prompt.js')
@@ -559,7 +555,8 @@ ${CYBER_RISK_INSTRUCTION}`,
           ),
         ]
       : []),
-    ...(false || false
+    // JARVIS: Brief system prompt section enabled (was feature('KAIROS') || feature('KAIROS_BRIEF')).
+    ...(getBriefSection()
       ? [systemPromptSection('brief', () => getBriefSection())]
       : []),
   ]
@@ -854,19 +851,12 @@ Old tool results will be automatically cleared from context to free up space. Th
 const SUMMARIZE_TOOL_RESULTS_SECTION = `When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`
 
 function getBriefSection(): string | null {
-  if (!(false || false)) return null
+  // JARVIS: Brief section enabled for all users (was feature('KAIROS') || feature('KAIROS_BRIEF')).
   if (!BRIEF_PROACTIVE_SECTION) return null
-  // Whenever the tool is available, the model is told to use it. The
-  // /brief toggle and --brief flag now only control the isBriefOnly
-  // display filter — they no longer gate model-facing behavior.
   if (!briefToolModule?.isBriefEnabled()) return null
   // When proactive is active, getProactiveSection() already appends the
   // section inline. Skip here to avoid duplicating it in the system prompt.
-  if (
-    (false || false) &&
-    proactiveModule?.isProactiveActive()
-  )
-    return null
+  if (proactiveModule?.isProactiveActive()) return null
   return BRIEF_PROACTIVE_SECTION
 }
 

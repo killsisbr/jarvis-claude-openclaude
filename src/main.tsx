@@ -1726,7 +1726,8 @@ async function run(): Promise<CommanderCommand> {
     // the tool as enabled when computing the base-tools disallow filter.
     // Conditional require avoids leaking the tool-name string into
     // external builds.
-    if ((false || false) && baseTools.length > 0) {
+    // JARVIS: Brief tool opt-in via --tools enabled for all users (was feature('KAIROS') || feature('KAIROS_BRIEF')).
+    if (baseTools.length > 0) {
       /* eslint-disable @typescript-eslint/no-require-imports */
       const {
         BRIEF_TOOL_NAME,
@@ -2182,7 +2183,8 @@ async function run(): Promise<CommanderCommand> {
     // BEFORE any isBriefEnabled() read below (proactive prompt's
     // briefVisibility). A persisted 'chat' after a GB kill-switch falls
     // through (entitlement fails).
-    if ((false || false) && !getIsNonInteractiveSession() && !getUserMsgOptIn() && getInitialSettings().defaultView === 'chat') {
+    // JARVIS: defaultView chat opt-in enabled for all users (was feature('KAIROS') || feature('KAIROS_BRIEF')).
+    if (!getIsNonInteractiveSession() && !getUserMsgOptIn() && getInitialSettings().defaultView === 'chat') {
       /* eslint-disable @typescript-eslint/no-require-imports */
       const {
         isBriefEntitled
@@ -4606,7 +4608,7 @@ function maybeActivateProactive(options: unknown): void {
   }
 }
 function maybeActivateBrief(options: unknown): void {
-  if (!(false || false)) return;
+  // JARVIS: Brief activation enabled for all users (was feature('KAIROS') || feature('KAIROS_BRIEF')).
   const briefFlag = (options as {
     brief?: boolean;
   }).brief;
