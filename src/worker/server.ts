@@ -19,6 +19,77 @@ import type { MessageDispatcher } from './dispatcher.ts'
 import type { SandboxManager } from './sandbox.ts'
 import { NightWorker, type MissionStatus } from './night-worker.ts'
 
+// ── Rate Limiter (in-memory sliding window) ──────────────────────────────────
+const RATE_LIMIT_WINDOW_MS = 60_000  // 1 minute window
+const RATE_LIMIT_MAX = parseInt(process.env.WORKER_RATE_LIMIT ?? '', 10) || 60  // 60 req/min default
+const rateLimitBuckets = new Map<string, number[]>()
+
+function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Skip rate limit for health checks
+  if (req.path === '/health') {
+    next()
+    return
+  }
+
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown'
+  const now = Date.now()
+  const windowStart = now - RATE_LIMIT_WINDOW_MS
+
+  let timestamps = rateLimitBuckets.get(clientIp) ?? []
+  timestamps = timestamps.filter(t => t > windowStart) // prune expired
+
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((timestamps[0]! + RATE_LIMIT_WINDOW_MS - now) / 1000)
+    res.set('Retry-After', String(retryAfter))
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      limit: RATE_LIMIT_MAX,
+      window: '60s',
+      retry_after: retryAfter,
+    })
+    return
+  }
+
+  timestamps.push(now)
+  rateLimitBuckets.set(clientIp, timestamps)
+
+  // Periodically clean up stale IPs (every ~100 requests)
+  if (Math.random() < 0.01) {
+    for (const [ip, ts] of rateLimitBuckets) {
+      if (ts.every(t => t <= windowStart)) rateLimitBuckets.delete(ip)
+    }
+  }
+
+  next()
+}
+
+// ── API Key Authentication ───────────────────────────────────────────────────
+const API_KEY = process.env.WORKER_API_KEY
+
+function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // If no API key configured, skip auth (development mode)
+  if (!API_KEY) {
+    next()
+    return
+  }
+
+  // Skip auth for health endpoint
+  if (req.path === '/health') {
+    next()
+    return
+  }
+
+  const provided = req.headers['x-api-key'] as string | undefined
+    ?? req.headers['authorization']?.replace(/^Bearer\s+/i, '')
+
+  if (!provided || provided !== API_KEY) {
+    res.status(401).json({ error: 'Invalid or missing API key. Set x-api-key header.' })
+    return
+  }
+
+  next()
+}
+
 let nightWorker: NightWorker | null = null
 
 function getNightWorker(worker: JarvisWorker): NightWorker {
@@ -49,7 +120,32 @@ export function createServer(
   httpServer?: any
 ): express.Application {
   const app = express()
-  app.use(express.json())
+  app.use(express.json({ limit: '1mb' }))
+
+  // CORS — allow configurable origins (default: same-origin only)
+  const corsOrigin = process.env.WORKER_CORS_ORIGIN
+  if (corsOrigin) {
+    app.use((_req, res, next) => {
+      res.header('Access-Control-Allow-Origin', corsOrigin)
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+      res.header('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization')
+      if (_req.method === 'OPTIONS') {
+        res.sendStatus(204)
+        return
+      }
+      next()
+    })
+  }
+
+  // Request logging
+  app.use((req, _res, next) => {
+    const ts = new Date().toISOString().slice(11, 19)
+    console.log(`[${ts}] ${req.method} ${req.path}`)
+    next()
+  })
+
+  app.use(rateLimitMiddleware)
+  app.use(authMiddleware)
 
   // Initialize WebSocket for skill hot-reload (Fase 8.5)
   if (httpServer) {

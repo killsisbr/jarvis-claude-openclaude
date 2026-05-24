@@ -153,17 +153,19 @@ function expandEnvPattern(pattern: string): string[] {
 
   const prefix = pattern.replace('*', '')
   const keys: string[] = []
+  let consecutiveGaps = 0
 
-  // Procurar ZEN_API_KEY_1, 2, 3, ... até achar uma brecha
+  // Procurar ZEN_API_KEY_1, 2, 3, ... tolerando até 3 gaps consecutivos
   for (let i = 1; i <= 100; i++) {
     const envVar = `${prefix}${i}`
     const val = process.env[envVar]
     if (!val) {
-      // Se não encontrar a chave N, assume que terminamos
-      // (permite gaps: KEY_1, KEY_2, (KEY_3 missing), KEY_4 — para por aqui)
-      if (i > 1) break
+      consecutiveGaps++
+      // Stop after 3 consecutive missing keys (tolerates sparse numbering)
+      if (consecutiveGaps >= 3) break
       continue
     }
+    consecutiveGaps = 0
     keys.push(val)
   }
 

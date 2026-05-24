@@ -83,12 +83,36 @@ export type WorkerStats = {
   }>
 }
 
+// LLM call defaults — override via settings.json or env vars
+const DEFAULT_MAX_TOKENS = parseInt(process.env.WORKER_MAX_TOKENS ?? '', 10) || 4096
+const DEFAULT_TEMPERATURE = parseFloat(process.env.WORKER_TEMPERATURE ?? '') || 0.7
+const DEFAULT_RETRY_COUNT = parseInt(process.env.WORKER_RETRY_COUNT ?? '', 10) || 2
+const RETRY_BASE_DELAY_MS = 1000 // exponential backoff base
+
 const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
+  // Claude 4.6
+  'claude-opus-4-6': { input: 15.0, output: 75.0 },
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
+  // Claude 4.5
+  'claude-opus-4-5': { input: 15.0, output: 75.0 },
   'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
   'claude-haiku-4-5': { input: 0.8, output: 4.0 },
-  'claude-opus-4-5': { input: 15.0, output: 75.0 },
+  // Claude 4
+  'claude-sonnet-4': { input: 3.0, output: 15.0 },
+  'claude-haiku-4': { input: 0.8, output: 4.0 },
+  // 3P models
   'deepseek-chat': { input: 0.27, output: 1.1 },
+  'deepseek-reasoner': { input: 0.55, output: 2.19 },
+  'gpt-4o': { input: 2.5, output: 10.0 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-4.1': { input: 2.0, output: 8.0 },
+  'gpt-4.1-mini': { input: 0.4, output: 1.6 },
+  'gpt-4.1-nano': { input: 0.1, output: 0.4 },
+  'gemini-2.5-pro': { input: 1.25, output: 10.0 },
+  'gemini-2.5-flash': { input: 0.15, output: 0.6 },
+  'o3': { input: 2.0, output: 8.0 },
+  'o3-mini': { input: 1.1, output: 4.4 },
+  'o4-mini': { input: 1.1, output: 4.4 },
   default: { input: 1.0, output: 5.0 },
 }
 
@@ -170,15 +194,32 @@ export class JarvisWorker {
 
       let result
       if (cacheEntry) {
-        // Use cached context
+        // Use cached context — find the last assistant message for the reply
         fromCache = true
         console.log(`[worker] Cache hit for ${userId}: similarity=${(cacheEntry.similarity * 100).toFixed(1)}%`)
 
-        // Return cached reply (simulated - in real implementation would use cached messages)
-        result = {
-          reply: cacheEntry.context.messages[cacheEntry.context.messages.length - 1]?.content || 'Cached response',
-          inputTokens: 0,
-          outputTokens: 0,
+        const cachedMessages = cacheEntry.context.messages ?? []
+        const lastAssistantMsg = [...cachedMessages]
+          .reverse()
+          .find(m => m.role === 'assistant')
+        const cachedReply = lastAssistantMsg?.content
+
+        // If no valid cached reply, skip cache and call LLM
+        if (!cachedReply || cachedReply.trim().length === 0) {
+          fromCache = false
+          console.warn(`[worker] Cache hit but no valid assistant reply — falling back to LLM`)
+          result = await this.callLLM({
+            baseURL: provider.baseURL,
+            apiKey: provider.apiKey,
+            model,
+            messages: builtMessages,
+          })
+        } else {
+          result = {
+            reply: cachedReply,
+            inputTokens: 0,
+            outputTokens: 0,
+          }
         }
       } else {
         // Call LLM and cache result
@@ -339,43 +380,161 @@ export class JarvisWorker {
     ]
   }
 
-  private async callLLM(opts: {
+  /**
+   * Detect if a base URL points to Anthropic's native API
+   * (api.anthropic.com or custom endpoint with /v1/messages).
+   */
+  private isAnthropicAPI(baseURL: string): boolean {
+    return baseURL.includes('api.anthropic.com') || baseURL.includes('/v1/messages')
+  }
+
+  /**
+   * Call Anthropic Messages API natively (no OpenAI compatibility layer).
+   * Supports system prompt, multi-turn, and proper token counting.
+   */
+  private async callAnthropicNative(opts: {
     baseURL: string
     apiKey: string
     model: string
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[]
+    maxTokens: number
+    temperature: number
   }): Promise<{ reply: string; inputTokens: number; outputTokens: number }> {
-    const url = `${opts.baseURL.replace(/\/$/, '')}/chat/completions`
+    const base = opts.baseURL.replace(/\/$/, '').replace(/\/v1\/messages$/, '')
+    const url = `${base}/v1/messages`
+
+    // Separate system prompt from conversation messages
+    const systemMsg = opts.messages.find(m => m.role === 'system')
+    const convMessages = opts.messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role, content: m.content }))
+
+    const body: Record<string, unknown> = {
+      model: opts.model,
+      messages: convMessages,
+      max_tokens: opts.maxTokens,
+      temperature: opts.temperature,
+    }
+    if (systemMsg) {
+      body.system = systemMsg.content
+    }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${opts.apiKey}`,
+        'x-api-key': opts.apiKey,
+        'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: opts.model,
-        messages: opts.messages,
-        max_tokens: 2048,
-        temperature: 0.7,
-      }),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
     })
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`)
+      const errBody = await response.text().catch(() => '')
+      throw new Error(`HTTP ${response.status}: ${errBody.slice(0, 200)}`)
     }
 
     const data = (await response.json()) as {
-      choices: Array<{ message: { content: string } }>
-      usage?: { prompt_tokens: number; completion_tokens: number }
+      content: Array<{ type: string; text: string }>
+      usage?: { input_tokens: number; output_tokens: number }
     }
 
-    const reply = data.choices?.[0]?.message?.content ?? ''
-    const inputTokens = data.usage?.prompt_tokens ?? 0
-    const outputTokens = data.usage?.completion_tokens ?? 0
+    const reply = data.content
+      ?.filter(c => c.type === 'text')
+      .map(c => c.text)
+      .join('') ?? ''
+    const inputTokens = data.usage?.input_tokens ?? 0
+    const outputTokens = data.usage?.output_tokens ?? 0
 
     return { reply, inputTokens, outputTokens }
+  }
+
+  private async callLLM(opts: {
+    baseURL: string
+    apiKey: string
+    model: string
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[]
+    maxTokens?: number
+    temperature?: number
+  }): Promise<{ reply: string; inputTokens: number; outputTokens: number }> {
+    const maxRetries = DEFAULT_RETRY_COUNT
+    const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS
+    const temperature = opts.temperature ?? DEFAULT_TEMPERATURE
+    const isAnthropic = this.isAnthropicAPI(opts.baseURL)
+
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Route to native Anthropic API or OpenAI-compatible
+        if (isAnthropic) {
+          return await this.callAnthropicNative({
+            ...opts,
+            maxTokens,
+            temperature,
+          })
+        }
+
+        const url = `${opts.baseURL.replace(/\/$/, '')}/chat/completions`
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${opts.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: opts.model,
+            messages: opts.messages,
+            max_tokens: maxTokens,
+            temperature,
+          }),
+          signal: AbortSignal.timeout(60_000), // 60s timeout per attempt
+        })
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => '')
+          const err = new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`)
+
+          // Don't retry on client errors (except 429 rate limit and 529 overload)
+          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+            throw err
+          }
+
+          lastError = err
+          if (attempt < maxRetries) {
+            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * 500
+            console.warn(`[worker] LLM attempt ${attempt + 1}/${maxRetries + 1} failed (${response.status}), retrying in ${delay.toFixed(0)}ms...`)
+            await new Promise(r => setTimeout(r, delay))
+            continue
+          }
+          throw err
+        }
+
+        const data = (await response.json()) as {
+          choices: Array<{ message: { content: string } }>
+          usage?: { prompt_tokens: number; completion_tokens: number }
+        }
+
+        const reply = data.choices?.[0]?.message?.content ?? ''
+        const inputTokens = data.usage?.prompt_tokens ?? 0
+        const outputTokens = data.usage?.completion_tokens ?? 0
+
+        return { reply, inputTokens, outputTokens }
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
+
+        // Network errors / timeouts → retry
+        if (attempt < maxRetries) {
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * 500
+          console.warn(`[worker] LLM attempt ${attempt + 1}/${maxRetries + 1} error: ${lastError.message.slice(0, 100)}, retrying in ${delay.toFixed(0)}ms...`)
+          await new Promise(r => setTimeout(r, delay))
+          continue
+        }
+      }
+    }
+
+    throw lastError ?? new Error('LLM call failed after retries')
   }
 
   private estimateCost(model: string, inputTokens: number, outputTokens: number): number {
