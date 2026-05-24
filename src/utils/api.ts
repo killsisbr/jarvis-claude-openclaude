@@ -285,20 +285,26 @@ export async function toolToAPISchema(
   // which independently respects this kill switch.
   // github.com/anthropics/claude-code/issues/20031
   if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)) {
-    const allowed = new Set([
-      'name',
-      'description',
-      'input_schema',
-      'cache_control',
-    ])
-    const stripped = Object.keys(schema).filter(k => !allowed.has(k))
-    if (stripped.length > 0) {
-      logStripOnce(stripped)
-      return {
-        name: schema.name,
-        description: schema.description,
-        input_schema: schema.input_schema,
-        ...(schema.cache_control && { cache_control: schema.cache_control }),
+    // JARVIS: 1P and Foundry support all beta tool schema fields —
+    // only strip for 3P proxies that reject unknown fields like defer_loading.
+    const { getAPIProvider: getProvider } = await import('./model/providers.js')
+    const currentProvider = getProvider()
+    if (currentProvider !== 'firstParty' && currentProvider !== 'foundry') {
+      const allowed = new Set([
+        'name',
+        'description',
+        'input_schema',
+        'cache_control',
+      ])
+      const stripped = Object.keys(schema).filter(k => !allowed.has(k))
+      if (stripped.length > 0) {
+        logStripOnce(stripped)
+        return {
+          name: schema.name,
+          description: schema.description,
+          input_schema: schema.input_schema,
+          ...(schema.cache_control && { cache_control: schema.cache_control }),
+        }
       }
     }
   }

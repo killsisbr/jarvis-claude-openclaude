@@ -222,12 +222,13 @@ export function shouldIncludeFirstPartyOnlyBetas(): boolean {
  * Global-scope prompt caching is firstParty only. Foundry is excluded because
  * GrowthBook never bucketed Foundry users into the rollout experiment — the
  * treatment data is firstParty-only.
+ *
+ * JARVIS: desacoplado de DISABLE_EXPERIMENTAL_BETAS — global cache scope only
+ * adds a header + scope field on cache_control. Safe for 1P, significant
+ * reduction in cache misses (cross-session prompt reuse).
  */
 export function shouldUseGlobalCacheScope(): boolean {
-  return (
-    getAPIProvider() === 'firstParty' &&
-    !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)
-  )
+  return getAPIProvider() === 'firstParty'
 }
 
 export const getAllModelBetas = memoize((model: string): string[] => {

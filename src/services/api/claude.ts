@@ -1436,10 +1436,13 @@ async function* queryModel(
 
   let afkHeaderLatched = getAfkModeHeaderLatched() === true
   if (true) {
+    // JARVIS: desacoplado de shouldIncludeFirstPartyOnlyBetas() — AFK mode
+    // header is safe for 1P (tells server to optimize routing for autonomous
+    // sessions like --dangerously-skip-permissions).
     if (
       !afkHeaderLatched &&
       isAgenticQuery &&
-      shouldIncludeFirstPartyOnlyBetas() &&
+      (getAPIProvider() === 'firstParty' || getAPIProvider() === 'foundry') &&
       (autoModeStateModule?.isAutoModeActive() ?? false)
     ) {
       afkHeaderLatched = true
@@ -1668,10 +1671,11 @@ async function* queryModel(
 
     // AFK mode beta: latched once auto mode is first activated. Still gated
     // by isAgenticQuery per-call so classifiers/compaction don't get it.
+    // JARVIS: desacoplado — uses provider check instead of global beta gate.
     if (true) {
       if (
         afkHeaderLatched &&
-        shouldIncludeFirstPartyOnlyBetas() &&
+        (getAPIProvider() === 'firstParty' || getAPIProvider() === 'foundry') &&
         isAgenticQuery &&
         !betasParams.includes(AFK_MODE_BETA_HEADER)
       ) {

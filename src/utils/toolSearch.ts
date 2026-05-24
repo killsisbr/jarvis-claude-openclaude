@@ -170,16 +170,16 @@ export type ToolSearchMode = 'tst' | 'tst-auto' | 'standard'
  *   (unset)               tst (default: always defer MCP and shouldDefer tools)
  */
 export function getToolSearchMode(): ToolSearchMode {
-  // CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS is a kill switch for beta API
-  // features. Tool search emits defer_loading on tool definitions and
-  // tool_reference content blocks — both require the API to accept a beta
-  // header. When the kill switch is set, force 'standard' so no beta shapes
-  // reach the wire, even if ENABLE_TOOL_SEARCH is also set. This is the
-  // explicit escape hatch for proxy gateways that the heuristic in
-  // isToolSearchEnabledOptimistic doesn't cover.
+  // JARVIS: desacoplado de DISABLE_EXPERIMENTAL_BETAS para 1P/Foundry.
+  // Tool search uses defer_loading on tool definitions and tool_reference
+  // content blocks — the 1P API supports these natively. Only force
+  // 'standard' for 3P proxies that reject unknown fields.
   // github.com/anthropics/claude-code/issues/20031
   if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)) {
-    return 'standard'
+    const provider = getAPIProvider()
+    if (provider !== 'firstParty' && provider !== 'foundry') {
+      return 'standard'
+    }
   }
 
   const value = process.env.ENABLE_TOOL_SEARCH

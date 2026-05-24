@@ -499,8 +499,10 @@ async function* queryLoop(
 
     // arcSummary must be a separate array element; concatenating it into a
     // template string makes [...systemPrompt] spread chars, shredding the prompt.
+    // JARVIS: enabled — knowledge graph arc summary provides conversation
+    // continuity (goals, decisions, discovered entities) across turns.
     let promptWithArc: readonly string[] = systemPrompt
-    if (false) {
+    if (true) {
       if (getGlobalConfig().knowledgeGraphEnabled) {
         const lastMessage = messagesForQuery[messagesForQuery.length - 1]
         const userQueryText =
