@@ -240,15 +240,16 @@ const updateMagicDocs = sequential(async function (
 })
 
 export async function initMagicDocs(): Promise<void> {
-  if (process.env.USER_TYPE === 'ant') {
-    // Register listener to detect magic docs when files are read
-    registerFileReadListener((filePath: string, content: string) => {
-      const result = detectMagicDocHeader(content)
-      if (result) {
-        registerMagicDoc(filePath)
-      }
-    })
+  // JARVIS: Magic Docs enabled for all users (not just ant).
+  // Files with "# MAGIC DOC: [title]" header are auto-maintained by a
+  // background subagent that updates the doc with new conversation learnings.
+  // Register listener to detect magic docs when files are read
+  registerFileReadListener((filePath: string, content: string) => {
+    const result = detectMagicDocHeader(content)
+    if (result) {
+      registerMagicDoc(filePath)
+    }
+  })
 
-    registerPostSamplingHook(updateMagicDocs)
-  }
+  registerPostSamplingHook(updateMagicDocs)
 }

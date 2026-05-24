@@ -8,6 +8,7 @@ import { WEB_FETCH_TOOL_NAME } from 'src/tools/WebFetchTool/prompt.js'
 import { WEB_SEARCH_TOOL_NAME } from 'src/tools/WebSearchTool/prompt.js'
 import { SHELL_TOOL_NAMES } from 'src/utils/shell/shellToolUtils.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 
 // docs: https://docs.google.com/document/d/1oCT4evvWTh3P6z-kcfNQwWTCxAhkoFndSaNS9Gm40uw/edit?tab=t.0
 
@@ -86,8 +87,11 @@ export function getAPIContextManagement(options?: {
     })
   }
 
-  // Tool clearing strategies are internal-only
-  if (process.env.USER_TYPE !== 'ant') {
+  // JARVIS: tool clearing strategies enabled for 1P users (not just ant).
+  // Opt-in via USE_API_CLEAR_TOOL_RESULTS=1 or USE_API_CLEAR_TOOL_USES=1.
+  // Server-side clearing is more efficient than client-side microcompact
+  // because it happens within the API call without an extra pass.
+  if (getAPIProvider() !== 'firstParty' && getAPIProvider() !== 'foundry') {
     return strategies.length > 0 ? { edits: strategies } : undefined
   }
 

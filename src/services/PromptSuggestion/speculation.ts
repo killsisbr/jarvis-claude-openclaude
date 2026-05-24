@@ -276,8 +276,6 @@ function createSpeculationFeedbackMessage(
   timeSavedMs: number,
   sessionTotalMs: number,
 ): Message | null {
-  if (process.env.USER_TYPE !== 'ant') return null
-
   if (messages.length === 0 || timeSavedMs === 0) return null
 
   const toolUses = countToolsInMessages(messages)
@@ -335,8 +333,13 @@ function resetSpeculationState(setAppState: SetAppState): void {
 }
 
 export function isSpeculationEnabled(): boolean {
+  // JARVIS: speculation enabled for 1P users (not just ant).
+  // Pre-generates next response while user reads current one, saving TTFT.
+  // Opt-out via settings.json: { "speculationEnabled": false }
+  const { getAPIProvider } = require('../../utils/model/providers.js') as typeof import('../../utils/model/providers.js')
+  const provider = getAPIProvider()
   const enabled =
-    process.env.USER_TYPE === 'ant' &&
+    (provider === 'firstParty' || provider === 'foundry') &&
     (getGlobalConfig().speculationEnabled ?? true)
   logForDebugging(`[Speculation] enabled=${enabled}`)
   return enabled
