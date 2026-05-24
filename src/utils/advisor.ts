@@ -1,6 +1,6 @@
 import type { BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
-import { shouldIncludeFirstPartyOnlyBetas } from './betas.js'
+import { getAPIProvider } from './model/providers.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getInitialSettings } from './settings/settings.js'
 
@@ -61,15 +61,19 @@ export function isAdvisorEnabled(): boolean {
   if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_ADVISOR_TOOL)) {
     return false
   }
-  // The advisor beta header is first-party only (Bedrock/Vertex 400 on it).
-  if (!shouldIncludeFirstPartyOnlyBetas()) {
+  // JARVIS: desacoplado de shouldIncludeFirstPartyOnlyBetas() — the advisor
+  // beta header is safe for 1P/Foundry (only Bedrock/Vertex 400 on it).
+  // Enabled by default since GrowthBook won't return config for external users.
+  const provider = getAPIProvider()
+  if (provider !== 'firstParty' && provider !== 'foundry') {
     return false
   }
-  return getAdvisorConfig().enabled ?? false
+  return getAdvisorConfig().enabled ?? true
 }
 
 export function canUserConfigureAdvisor(): boolean {
-  return isAdvisorEnabled() && (getAdvisorConfig().canUserConfigure ?? false)
+  // JARVIS: default to true so /advisor command works without GrowthBook.
+  return isAdvisorEnabled() && (getAdvisorConfig().canUserConfigure ?? true)
 }
 
 export function getExperimentAdvisorModels():
