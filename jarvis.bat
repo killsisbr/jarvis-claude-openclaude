@@ -42,6 +42,7 @@ if /i "%~1"=="ollama"   goto :p_ollama
 if /i "%~1"=="github"   goto :p_github
 if /i "%~1"=="groq"     goto :p_groq
 if /i "%~1"=="rotate"   goto :p_rotate
+if /i "%~1"=="kimi"     goto :p_kimi
 
 REM No explicit provider -- auto-detect from .env keys, fallback to Claude
 set "PASS_ARGS=%*"
@@ -162,6 +163,15 @@ set "OPENAI_MODEL=gpt-4o-mini"
 set "OPENAI_API_KEY=placeholder"
 set "CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED=1"
 echo [jarvis] Rotate Mode (chain: %ROTATE_CHAIN%)
+goto :launch
+
+:p_kimi
+set "PASS_ARGS=%~2 %~3 %~4 %~5 %~6 %~7 %~8 %~9"
+set "CLAUDE_CODE_USE_OPENAI=1"
+set "OPENAI_BASE_URL=http://localhost:3000/v1"
+set "OPENAI_API_KEY=jarvis-kimi-2025"
+set "OPENAI_MODEL=k2d6-thinking"
+echo [jarvis] KimiProxy / %OPENAI_MODEL%
 goto :launch
 
 :launch

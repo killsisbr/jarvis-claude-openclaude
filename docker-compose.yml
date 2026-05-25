@@ -1,53 +1,9 @@
-version: '3.9'
-
-services:
-  jarvis-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: jarvis-worker
-    ports:
-      - "3000:3000"
-    environment:
-      - WORKER_PORT=3000
-      - NODE_ENV=production
-      # Copiar seus .env vars aqui:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-      - JARVIS_SYSTEM_PROMPT=${JARVIS_SYSTEM_PROMPT:-}
-    volumes:
-      # Diretório para salvar missões/logs (persiste entre restarts)
-      - jarvis-data:/home/jarvis/.jarvis
-      # (OPCIONAL) Se quer que worker leia seus projetos em read-only
-      # - /home/ubuntu/crm-venda:/data/crm-venda:ro
-      # - /home/ubuntu/minecraft-plugins:/data/minecraft-plugins:ro
-    restart: unless-stopped
-    resources:
-      limits:
-        cpus: '1'
-        memory: 2G
-      reservations:
-        cpus: '0.5'
-        memory: 1G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - jarvis-net
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-volumes:
-  jarvis-data:
-    driver: local
-
-networks:
-  jarvis-net:
-    driver: bridge
+# DEPRECATED: Use ../docker-compose.yml na raiz do workspace
+# Este arquivo foi substituido pela orquestracao unificada.
+#
+# Para iniciar todos os servicos:
+#   cd D:\jarvis-claude
+#   docker compose up -d
+#
+# Para iniciar apenas o openclaude worker:
+#   docker compose up -d openclaude-worker
