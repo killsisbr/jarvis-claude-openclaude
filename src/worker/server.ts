@@ -1,11 +1,26 @@
 /**
  * server — Express HTTP para o JARVIS Worker.
  *
- * Rotas:
+ * Rotas Principais:
  *   GET  /health                    → status do worker
  *   POST /api/chat                  → enviar mensagem e receber resposta
  *   GET  /api/cost                  → custo do dia + estatísticas
  *   GET  /api/keys                  → status dos pools de chave
+ *
+ * Rotas Phase 2 - Exec (Agentic Loop):
+ *   POST /api/exec                  → executar com tools (agentic loop, max 10 turns)
+ *   GET  /api/exec/:id/stream       → stream events (SSE)
+ *   GET  /api/exec/:id              → resultado da execução
+ *   GET  /api/exec                  → listar execuções
+ *
+ * Rotas Phase 3 - Plan (Workflow Synthesis):
+ *   POST /api/plan-workflow         → gerar workflow DAG de task prompt
+ *   GET  /api/plan/:id              → detalhes do workflow
+ *   POST /api/plan/:id/replan       → replan em caso de falha
+ *   GET  /api/plan/:id/execution-order → ordem topológica dos agents
+ *   GET  /api/plan                  → listar workflows
+ *
+ * Rotas Autonomia:
  *   POST /api/mission               → criar e iniciar missão autônoma
  *   GET  /api/mission               → listar missões (?status=running)
  *   GET  /api/mission/:id           → detalhes de uma missão
@@ -18,6 +33,9 @@ import type { JarvisWorker } from './worker-core.ts'
 import type { MessageDispatcher } from './dispatcher.ts'
 import type { SandboxManager } from './sandbox.ts'
 import { NightWorker, type MissionStatus } from './night-worker.ts'
+import { createExecRoutes } from './routes/exec-api.ts'
+import { createPlanRoutes } from './routes/plan-api.ts'
+import { getGlobalSessionManager } from './services/session-manager.ts'
 
 // ── Rate Limiter (in-memory sliding window) ──────────────────────────────────
 const RATE_LIMIT_WINDOW_MS = 60_000  // 1 minute window
@@ -121,6 +139,12 @@ export function createServer(
 ): express.Application {
   const app = express()
   app.use(express.json({ limit: '1mb' }))
+
+  // Initialize session manager (Phase 2)
+  const sessionManager = getGlobalSessionManager({
+    ttlMs: 30 * 60 * 1000, // 30 minutes
+    cleanupIntervalMs: 5 * 60 * 1000, // 5 minutes
+  })
 
   // CORS — allow configurable origins (default: same-origin only)
   const corsOrigin = process.env.WORKER_CORS_ORIGIN
@@ -677,6 +701,16 @@ export function createServer(
     })
   })
 
+  // ── Exec API Routes (Phase 2) ───────────────────────────────────────────────
+
+  const execRoutes = createExecRoutes(worker, sessionManager)
+  app.use(execRoutes)
+
+  // ── Plan API Routes (Phase 3) ────────────────────────────────────────────────
+
+  const planRoutes = createPlanRoutes()
+  app.use(planRoutes)
+
   // ── Checkpoints (Fase 5) ─────────────────────────────────────────────────────
 
   app.get('/api/checkpoints', (_req: Request, res: Response) => {
@@ -904,6 +938,12 @@ export function createServer(
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error('[worker] Erro não tratado:', err.message)
     res.status(500).json({ error: 'Erro interno do servidor.' })
+  })
+
+  // Session cleanup on shutdown
+  process.on('SIGTERM', () => {
+    console.log('[worker] Limpando sessões...')
+    sessionManager.destroy()
   })
 
   return app
