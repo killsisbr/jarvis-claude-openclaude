@@ -62,6 +62,15 @@ export function getAPIProvider(): LegacyAPIProvider {
       return isCodexModel() ? 'codex' : 'openai'
     case 'anthropic':
     default:
+      // Check if custom OPENAI_BASE_URL is set (local OpenAI-compatible API)
+      if (
+        !isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) &&
+        (process.env.OPENAI_BASE_URL || process.env.OPENAI_API_BASE) &&
+        isFirstPartyAnthropicBaseUrl()
+      ) {
+        return 'openai'
+      }
+
       if (
         activeRouteId &&
         activeRouteId !== 'anthropic' &&

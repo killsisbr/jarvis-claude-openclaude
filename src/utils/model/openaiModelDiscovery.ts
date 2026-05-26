@@ -180,12 +180,16 @@ export async function discoverOpenAICompatibleModelOptions(): Promise<
     return []
   }
 
-  if (getAPIProvider() !== 'openai') {
+  const apiProvider = getAPIProvider()
+  // Support both 'openai' and 'custom' providers for OpenAI-compatible APIs
+  if (apiProvider !== 'openai' && apiProvider !== 'codex') {
     return []
   }
 
   const baseUrl = getNormalizedOpenAIBaseUrl()
   const headers = getOpenAIAuthHeaders(baseUrl)
+
+  logForDebugging(`[ModelDiscovery] Discovering from ${baseUrl}`)
 
   let discoveredModelNames = await fetchOpenAIModels(
     getModelListUrls(baseUrl),
@@ -198,6 +202,8 @@ export async function discoverOpenAICompatibleModelOptions(): Promise<
       discoveredModelNames = await fetchOllamaModels(ollamaTagsUrl, headers)
     }
   }
+
+  logForDebugging(`[ModelDiscovery] Found ${discoveredModelNames.length} models`)
 
   return discoveredModelNames.map(modelName => ({
     value: modelName,
